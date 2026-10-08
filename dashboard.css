@@ -33,6 +33,7 @@ h2 { font-size:1.3rem; font-weight:800; margin-bottom:0; color:var(--navy-dark);
 .content-pane { display:none; }
 .content-pane.active { display:block; }
 
+/* SUMMARY & DETAIL DATATABLES CSS */
 table.dataTable { border-collapse: separate !important; border-spacing: 0 !important; margin: 0 !important; width: 100% !important; }
 .table { font-size: 0.72rem; }
 
@@ -43,13 +44,13 @@ table.dataTable thead th { background-color: var(--navy-dark) !important; color:
 table.dataTable tbody td { padding: 8px 15px !important; white-space: nowrap !important; border-bottom: 1px solid #e2e8f0 !important; color: #334155; font-weight: 600; vertical-align: middle !important; text-align: center !important; }
 
 tr.grandtotal-row th { background-color: var(--navy-light) !important; color: var(--minutes-yellow) !important; font-weight: 800 !important; border-bottom: 2px solid var(--navy-dark) !important; position: relative; z-index: 1 !important; }
-tr.subtotal-row td, tr.group-header td, tr.doh-l1 td { background-color: #d1d5db !important; color: var(--navy-dark) !important; font-weight: 800 !important; }
+tr.subtotal-row td, tr.group-header td { background-color: #d1d5db !important; color: var(--navy-dark) !important; font-weight: 800 !important; }
 
 table.dataTable thead th.dtfc-fixed-left, table.dataTable tbody td.dtfc-fixed-left, table.dataTable thead tr.grandtotal-row th.dtfc-fixed-left { position: sticky !important; border-right: none !important; }
 table.dataTable thead th.dtfc-fixed-left { background-color: var(--navy-dark) !important; z-index: 10 !important; }
 table.dataTable thead tr.grandtotal-row th.dtfc-fixed-left { background-color: var(--navy-light) !important; color: var(--minutes-yellow) !important; z-index: 11 !important; }
 table.dataTable tbody td.dtfc-fixed-left { background-color: #fff !important; z-index: 5 !important; }
-table.dataTable tbody tr.subtotal-row td.dtfc-fixed-left, table.dataTable tbody tr.group-header td.dtfc-fixed-left, table.dataTable tbody tr.doh-l1 td.dtfc-fixed-left { background-color: #d1d5db !important; }
+table.dataTable tbody tr.subtotal-row td.dtfc-fixed-left, table.dataTable tbody tr.group-header td.dtfc-fixed-left { background-color: #d1d5db !important; }
 table.dataTable tbody tr:hover td.dtfc-fixed-left { background-color: #f1f5f9 !important; }
 
 .pct-good { color:#15803d; font-weight:800; }
@@ -69,42 +70,73 @@ tr.group-header.collapsed .toggle-icon { transform: rotate(-90deg); }
 .info-note { font-size: 0.7rem; color: #64748b; margin-top: 5px; font-weight: 600; display:flex; align-items:center; }
 .updated-time-badge { background-color: #e2e8f0; color: #334155; font-weight: 700; padding: 5px 10px; border-radius: 6px; font-size: 0.75rem; border: 1px solid #cbd5e1; }
 
-/* ======== STRICT TABULAR MATRIX STYLING (FIXED ALIGNMENT) ======== */
-#tbl-doh { 
-    border-collapse: separate !important; 
+/* ========================================================
+   🔴 NATIVE DOH MATRIX CSS (Solves Alignment & Border Issues)
+   ======================================================== */
+#doh-table-wrapper {
+    max-height: 65vh;
+    overflow: auto;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    position: relative;
+}
+
+#tbl-doh {
+    border-collapse: separate !important;
     border-spacing: 0 !important;
-    table-layout: fixed !important; /* Forces rigid columns */
-    width: max-content !important; 
+    width: max-content !important;
+    margin: 0 !important;
 }
-#tbl-doh th, #tbl-doh td { 
-    border-right: 1px solid #cbd5e1 !important; 
-    border-bottom: 1px solid #cbd5e1 !important; 
-    padding: 6px 8px !important; 
-    font-size: 0.68rem; 
-    text-align: center !important;
-    width: 80px !important;       /* Locks width */
-    min-width: 80px !important;   /* Locks width */
-    max-width: 80px !important;   /* Locks width */
-    overflow: hidden !important;
-    white-space: nowrap !important;
-}
-#tbl-doh thead th { 
-    background-color: var(--navy-dark) !important; 
-    color: #f8fafc !important; 
-    border-top: 1px solid #334155 !important;
-}
-#tbl-doh tbody td.dtfc-fixed-left { border-right: 2px solid #475569 !important; text-align: left !important; }
 
-/* Heavy thick boundary line between major DOH Buckets */
-.doh-bucket-divider { border-left: 3px solid #1e293b !important; }
-table.dataTable tbody td.doh-bucket-divider { border-left: 3px solid #1e293b !important; }
+#tbl-doh th, #tbl-doh td {
+    border-right: 1px solid #cbd5e1;
+    border-bottom: 1px solid #cbd5e1;
+    padding: 6px 12px;
+    font-size: 0.68rem;
+    text-align: center;
+    white-space: nowrap;
+}
 
-/* Expanded hierarchy column width */
-#tbl-doh .boundary-col { 
-    width: 280px !important; 
-    min-width: 280px !important; 
-    max-width: 280px !important; 
-    text-align: left !important;
+/* Natively Sticky Header Elements */
+#tbl-doh thead th {
+    position: sticky;
+    top: 0; /* Ensures headers stay visible on scroll */
+    z-index: 20;
+    background-color: var(--navy-dark);
+    color: #f8fafc;
+    font-weight: 700;
+}
+
+/* Push the second header row down so it doesn't overlap */
+#tbl-doh thead tr:nth-child(2) th {
+    top: 32px; 
+    z-index: 19;
+}
+
+/* Natively Sticky Hierarchy Column */
+#tbl-doh .frozen-col {
+    position: sticky;
+    left: 0;
+    z-index: 15;
+    background-color: #fff;
+    border-right: 2px solid #475569 !important;
+    text-align: left;
+    min-width: 250px;
+}
+
+#tbl-doh thead th.frozen-col {
+    z-index: 25; /* Corners must be highest z-index */
+}
+
+/* Row coloring */
+#tbl-doh tbody tr.doh-l1 td.frozen-col { background-color: #e2e8f0; font-weight: 800; color: var(--navy-dark); }
+#tbl-doh tbody tr.doh-l1 td { background-color: #e2e8f0; font-weight: 800; }
+#tbl-doh tbody tr:hover td { background-color: #f8fafc; }
+#tbl-doh tbody tr:hover td.frozen-col { background-color: #f8fafc; }
+
+/* 🔴 THICK DIVIDERS BETWEEN DOH BUCKETS */
+#tbl-doh th.doh-divider, #tbl-doh td.doh-divider {
+    border-left: 3px solid #0f172a !important; /* Bold, dark separator */
 }
 
 /* Sorting Click Hover */
