@@ -71,7 +71,7 @@ tr.group-header.collapsed .toggle-icon { transform: rotate(-90deg); }
 .updated-time-badge { background-color: #e2e8f0; color: #334155; font-weight: 700; padding: 5px 10px; border-radius: 6px; font-size: 0.75rem; border: 1px solid #cbd5e1; }
 
 /* ========================================================
-   🔴 NATIVE DOH MATRIX CSS (Solves Alignment & Border Issues)
+   🔴 NATIVE DOH MATRIX CSS (Flawless Alignment Engine)
    ======================================================== */
 #doh-table-wrapper {
     max-height: 65vh;
@@ -89,28 +89,28 @@ tr.group-header.collapsed .toggle-icon { transform: rotate(-90deg); }
 }
 
 #tbl-doh th, #tbl-doh td {
-    border-right: 1px solid #cbd5e1;
-    border-bottom: 1px solid #cbd5e1;
-    padding: 6px 12px;
+    background-clip: padding-box !important; /* Prevents overlapping background bleed */
+    border-right: 1px solid #94a3b8 !important;
+    border-bottom: 1px solid #94a3b8 !important;
+    padding: 6px 10px !important;
     font-size: 0.68rem;
-    text-align: center;
-    white-space: nowrap;
+    text-align: center !important;
+    white-space: nowrap !important;
+    min-width: 60px;
 }
 
-/* Natively Sticky Header Elements */
+/* Natively Sticky Top Headers */
 #tbl-doh thead th {
     position: sticky;
-    top: 0; /* Ensures headers stay visible on scroll */
     z-index: 20;
-    background-color: var(--navy-dark);
-    color: #f8fafc;
+    background-color: var(--navy-dark) !important;
+    color: #f8fafc !important;
     font-weight: 700;
 }
 
-/* Push the second header row down so it doesn't overlap */
-#tbl-doh thead tr:nth-child(2) th {
-    top: 32px; 
-    z-index: 19;
+#tbl-doh thead tr:nth-child(1) th {
+    top: 0; /* Anchor row 1 */
+    border-top: 1px solid var(--navy-dark) !important; 
 }
 
 /* Natively Sticky Hierarchy Column */
@@ -118,25 +118,25 @@ tr.group-header.collapsed .toggle-icon { transform: rotate(-90deg); }
     position: sticky;
     left: 0;
     z-index: 15;
-    background-color: #fff;
+    background-color: #fff !important;
     border-right: 2px solid #475569 !important;
-    text-align: left;
+    text-align: left !important;
     min-width: 250px;
 }
 
 #tbl-doh thead th.frozen-col {
-    z-index: 25; /* Corners must be highest z-index */
+    z-index: 25 !important; /* Corner anchor */
 }
 
 /* Row coloring */
-#tbl-doh tbody tr.doh-l1 td.frozen-col { background-color: #e2e8f0; font-weight: 800; color: var(--navy-dark); }
-#tbl-doh tbody tr.doh-l1 td { background-color: #e2e8f0; font-weight: 800; }
-#tbl-doh tbody tr:hover td { background-color: #f8fafc; }
-#tbl-doh tbody tr:hover td.frozen-col { background-color: #f8fafc; }
+#tbl-doh tbody tr.doh-l1 td.frozen-col { background-color: #e2e8f0 !important; color: var(--navy-dark) !important; }
+#tbl-doh tbody tr.doh-l1 td { background-color: #e2e8f0 !important; font-weight: 800 !important; }
+#tbl-doh tbody tr:hover td { background-color: #f1f5f9 !important; }
+#tbl-doh tbody tr:hover td.frozen-col { background-color: #f1f5f9 !important; }
 
 /* 🔴 THICK DIVIDERS BETWEEN DOH BUCKETS */
 #tbl-doh th.doh-divider, #tbl-doh td.doh-divider {
-    border-left: 3px solid #0f172a !important; /* Bold, dark separator */
+    border-left: 3px solid #0f172a !important; /* Thick solid line */
 }
 
 /* Sorting Click Hover */
