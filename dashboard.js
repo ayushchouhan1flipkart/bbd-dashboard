@@ -1,21 +1,16 @@
 let CURRENT_MODE = 'DRY'; 
-let CURRENT_LEVEL = 'BUYING'; // BUYING or SH_P0
+let CURRENT_LEVEL = 'BUYING'; 
 let SHOW_ATTAINMENT = false;
 
-let DATA_CACHE = {
-  'DRY': { RAW: null, HEADERS: [], COL_IDX: {}, lastUpdated: null },
-  'MLE': { RAW: null, HEADERS: [], COL_IDX: {}, lastUpdated: null }
-};
-
-let RAW_DATA = [];
-let FILTERED_DATA = [];
-let COL_IDX = {};
-let HEADERS = [];
+let DATA_CACHE = { 'DRY': { RAW: null, HEADERS: [], COL_IDX: {}, lastUpdated: null }, 'MLE': { RAW: null, HEADERS: [], COL_IDX: {}, lastUpdated: null } };
+let RAW_DATA = [], FILTERED_DATA = [], COL_IDX = {}, HEADERS = [];
 
 const FILTER_MAP = {
   "BU": ["BU", "bu", "Updated_BU"],
   "SH": ["FC_Code", "fc_code", "SH", "Buying FC"],
   "FALLBACK": ["fallback_fc", "Fallback FC", "Fallback_FC", "fallback fc"],
+  "ATTAINMENT_BUCKET": ["attainment_bucket", "Attainment Bucket", "attainment bucket"],
+  "DOH_BUCKET": ["doh_bucket", "DOH Bucket", "doh bucket"],
   "OWNER": ["Instock_Owner", "Instock Owner"],
   "BRAND": ["brand", "Brand"],
   "VENDOR": ["Vendor_Name", "Vendor", "vendor"],
@@ -37,26 +32,18 @@ const FILTER_MAP = {
   "VOLUMETRIC": ["volumetric_flag", "Volumetric Flag"]
 };
 
-const KEY_MAPPINGS_DRY = {
-  'BU': ['BU', 'bu'], 'Zone': ['Zone', 'zone'], 'brand': ['brand', 'Brand'], 'Vendor_Name': ['Vendor_Name', 'Vendor'], 'analytic_vertical': ['analytic_vertical', 'Vertical'], 'super_category': ['super_category', 'Supercategory'], 'tagging': ['tagging', 'Tagging'], 'FC_Code': ['FC_Code', 'fc_code', 'SH']
-};
-const KEY_MAPPINGS_MLE = {
-  'BU': ['BU', 'bu'], 'Zone': ['Zone', 'zone'], 'brand': ['brand', 'Brand'], 'analytic_vertical': ['Analytical Vertical', 'Vertical'], 'super_category': ['Super category', 'Supercategory'], 'FC_Code': ['Buying FC', 'buying fc', 'SH']
-};
+const KEY_MAPPINGS_DRY = { 'BU': ['BU', 'bu'], 'Zone': ['Zone', 'zone'], 'brand': ['brand', 'Brand'], 'Vendor_Name': ['Vendor_Name', 'Vendor'], 'analytic_vertical': ['analytic_vertical', 'Vertical'], 'super_category': ['super_category', 'Supercategory'], 'tagging': ['tagging', 'Tagging'], 'FC_Code': ['FC_Code', 'fc_code', 'SH'] };
+const KEY_MAPPINGS_MLE = { 'BU': ['BU', 'bu'], 'Zone': ['Zone', 'zone'], 'brand': ['brand', 'Brand'], 'analytic_vertical': ['Analytical Vertical', 'Vertical'], 'super_category': ['Super category', 'Supercategory'], 'FC_Code': ['Buying FC', 'buying fc', 'SH'] };
 
-$(document).ready(function() {
-  $('.select2').select2({ width: '100%', placeholder: 'All' });
-  switchMode('DRY'); 
-});
+$(document).ready(function() { $('.select2').select2({ width: '100%', placeholder: 'All' }); switchMode('DRY'); });
 
 function switchMode(mode) {
   CURRENT_MODE = mode;
   if (mode === 'MLE') {
       $('.dry-only').hide(); $('.dry-only-tab').hide();
       $('.sh-label').text('Buying FC'); $('.sh-tab-label').text('Zone x Buying FC');
-      if ($('.sub-tab.active').hasClass('dry-only-tab')) {
-          $('.sub-tab').removeClass('active'); $('[data-view="bu_zone"]').addClass('active');
-      }
+      if ($('.content-pane.active').attr('id') === 'doh-pane') switchTab($('[data-pane="summary-pane"]'));
+      if ($('.sub-tab.active').hasClass('dry-only-tab')) { $('.sub-tab').removeClass('active'); $('[data-view="bu_zone"]').addClass('active'); }
   } else {
       $('.dry-only').show(); $('.dry-only-tab').show();
       $('.sh-label').text('SH (FC Code)'); $('.sh-tab-label').text('Zone x SH');
@@ -65,77 +52,38 @@ function switchMode(mode) {
   if (DATA_CACHE[mode].RAW) {
       RAW_DATA = DATA_CACHE[mode].RAW; HEADERS = DATA_CACHE[mode].HEADERS; COL_IDX = DATA_CACHE[mode].COL_IDX;
       FILTERED_DATA = RAW_DATA; 
-      $('#last-updated-text').text(DATA_CACHE[mode].lastUpdated);
-      $('#last-updated-badge').removeClass('d-none');
+      $('#last-updated-text').text(DATA_CACHE[mode].lastUpdated); $('#last-updated-badge').removeClass('d-none');
       populateFilters(); applyFilters();
   } else {
-      $('#loader-text').text("Fetching " + mode + " Data...");
-      $('#loader-overlay').show();
-      progressFake(0, 40);
+      $('#loader-text').text("Fetching " + mode + " Data..."); $('#loader-overlay').show(); progressFake(0, 40);
       google.script.run
         .withSuccessHandler(function(config) {
-          if (config.updatedTime) {
-            DATA_CACHE[mode].lastUpdated = config.updatedTime;
-            $('#last-updated-text').text(config.updatedTime);
-            $('#last-updated-badge').removeClass('d-none');
-          }
+          if (config.updatedTime) { DATA_CACHE[mode].lastUpdated = config.updatedTime; $('#last-updated-text').text(config.updatedTime); $('#last-updated-badge').removeClass('d-none'); }
           downloadCSVDirectly(config);
-        })
-        .withFailureHandler(err => { alert("Error connecting: " + err); $('#loader-overlay').hide(); })
-        .getDriveDataConfig(mode);
+        }).withFailureHandler(err => { alert("Error connecting: " + err); $('#loader-overlay').hide(); }).getDriveDataConfig(mode);
   }
 }
 
-function switchLevel(level) {
-  CURRENT_LEVEL = level;
-  const activePane = $('.content-pane.active').attr('id');
-  if (activePane === 'detail-pane') renderDetailTab(); else renderActiveSubTab();
-}
-
-function switchAttainment(isActive) {
-  SHOW_ATTAINMENT = isActive;
-  const activePane = $('.content-pane.active').attr('id');
-  if (activePane === 'detail-pane') renderDetailTab(); else renderActiveSubTab();
-}
-
-function openAttainmentTracker() {
-  window.open('https://docs.google.com/spreadsheets/d/1xAE9r8ZsiMWepJsJr6dkdXewRNAgxEpWVjHARtdCZ7I', '_blank');
-}
+function switchLevel(level) { CURRENT_LEVEL = level; refreshActivePane(); }
+function switchAttainment(isActive) { SHOW_ATTAINMENT = isActive; refreshActivePane(); }
+function openAttainmentTracker() { window.open('https://docs.google.com/spreadsheets/d/1xAE9r8ZsiMWepJsJr6dkdXewRNAgxEpWVjHARtdCZ7I', '_blank'); }
 
 function downloadCSVDirectly(config) {
-  $('#loader-text').text("Downloading " + CURRENT_MODE + " CSV...");
-  progressFake(40, 80);
-  Papa.parse('https://www.googleapis.com/drive/v3/files/' + config.id + '?alt=media', {
-    download: true, header: false, skipEmptyLines: true, worker: true, 
-    downloadRequestHeaders: { "Authorization": "Bearer " + config.token },
-    complete: function(results) { processRawData(results.data); },
-    error: function(err) { alert("Error fetching data: " + err); $('#loader-overlay').hide(); }
-  });
+  $('#loader-text').text("Downloading " + CURRENT_MODE + " CSV..."); progressFake(40, 80);
+  Papa.parse('https://www.googleapis.com/drive/v3/files/' + config.id + '?alt=media', { download: true, header: false, skipEmptyLines: true, worker: true, downloadRequestHeaders: { "Authorization": "Bearer " + config.token },
+    complete: function(results) { processRawData(results.data); }, error: function(err) { alert("Error fetching data: " + err); $('#loader-overlay').hide(); } });
 }
 
 function processRawData(data) {
-  $('#loader-text').text("Building Index...");
-  progressFake(80, 99);
-  let newHeaders = data.shift().map(h => String(h).trim());
-  let newColIdx = {};
-  newHeaders.forEach((h, i) => { 
-    newColIdx[h] = i; newColIdx[h.toLowerCase()] = i; newColIdx[String(h).trim()] = i; newColIdx[String(h).trim().toLowerCase()] = i;
-  });
+  $('#loader-text').text("Building Index..."); progressFake(80, 99);
+  let newHeaders = data.shift().map(h => String(h).trim()); let newColIdx = {};
+  newHeaders.forEach((h, i) => { newColIdx[h] = i; newColIdx[h.toLowerCase()] = i; newColIdx[String(h).trim()] = i; newColIdx[String(h).trim().toLowerCase()] = i; });
   DATA_CACHE[CURRENT_MODE].RAW = data; DATA_CACHE[CURRENT_MODE].HEADERS = newHeaders; DATA_CACHE[CURRENT_MODE].COL_IDX = newColIdx;
   RAW_DATA = data; HEADERS = newHeaders; COL_IDX = newColIdx; FILTERED_DATA = RAW_DATA; 
-  populateFilters();
-  if ($('.content-pane.active').attr('id') === 'detail-pane') renderDetailTab();
-  else renderActiveSubTab();
-  $('#loader-overlay').fadeOut(300);
+  populateFilters(); refreshActivePane(); $('#loader-overlay').fadeOut(300);
 }
 
-function progressFake(start, end) {
-  let val = start;
-  let timer = setInterval(() => {
-    val += Math.random() * 5;
-    if (val >= end) { val = end; clearInterval(timer); }
-  }, 100);
-}
+function progressFake(start, end) { let val = start; let timer = setInterval(() => { val += Math.random() * 5; if (val >= end) { val = end; clearInterval(timer); } }, 100); }
 
 function getColIdx(names) {
   for (let n of names) { 
@@ -150,20 +98,10 @@ function getColIdx(names) {
 
 function populateFilters() {
   let sets = {}; Object.keys(FILTER_MAP).forEach(k => sets[k] = new Set());
-  RAW_DATA.forEach(row => {
-    Object.keys(FILTER_MAP).forEach(uiKey => {
-      let idx = getColIdx(FILTER_MAP[uiKey]);
-      if (idx !== -1 && row[idx]) sets[uiKey].add(String(row[idx]).trim());
-    });
-  });
+  RAW_DATA.forEach(row => { Object.keys(FILTER_MAP).forEach(uiKey => { let idx = getColIdx(FILTER_MAP[uiKey]); if (idx !== -1 && row[idx]) sets[uiKey].add(String(row[idx]).trim()); }); });
   Object.keys(FILTER_MAP).forEach(uiKey => {
     let el = $('#f-' + uiKey); el.empty();
-    if (uiKey === 'FSN') {
-      if (el.hasClass('select2-hidden-accessible')) el.select2('destroy');
-      let fsnArr = Array.from(sets[uiKey]).sort().map(v => ({ id: v, text: v }));
-      el.select2({ placeholder: 'All', allowClear: true, data: fsnArr, minimumInputLength: 2, width: '100%' });
-      return;
-    }
+    if (uiKey === 'FSN') { if (el.hasClass('select2-hidden-accessible')) el.select2('destroy'); let fsnArr = Array.from(sets[uiKey]).sort().map(v => ({ id: v, text: v })); el.select2({ placeholder: 'All', allowClear: true, data: fsnArr, minimumInputLength: 2, width: '100%' }); return; }
     Array.from(sets[uiKey]).sort().forEach(val => el.append(new Option(val, val)));
     if (!el.hasClass('select2-hidden-accessible')) el.select2({ placeholder: 'All', allowClear: true, width: '100%' });
   });
@@ -173,22 +111,10 @@ function applyFilters() {
   $('#loader-text').text("Applying Filters..."); $('#loader-overlay').show();
   setTimeout(() => {
     let activeFilters = {};
-    Object.keys(FILTER_MAP).forEach(uiKey => {
-      let vals = $('#f-' + uiKey).val(); if (vals && vals.length > 0) activeFilters[uiKey] = vals;
-    });
+    Object.keys(FILTER_MAP).forEach(uiKey => { let vals = $('#f-' + uiKey).val(); if (vals && vals.length > 0) activeFilters[uiKey] = vals; });
     if (Object.keys(activeFilters).length === 0) FILTERED_DATA = RAW_DATA;
-    else {
-      FILTERED_DATA = RAW_DATA.filter(row => {
-        for (let uiKey in activeFilters) {
-          let idx = getColIdx(FILTER_MAP[uiKey]); if (idx === -1) continue;
-          if (!activeFilters[uiKey].includes(String(row[idx]).trim())) return false;
-        }
-        return true;
-      });
-    }
-    const activePane = $('.content-pane.active').attr('id');
-    if (activePane === 'detail-pane') renderDetailTab(); else renderActiveSubTab();
-    $('#loader-overlay').fadeOut(200);
+    else { FILTERED_DATA = RAW_DATA.filter(row => { for (let uiKey in activeFilters) { let idx = getColIdx(FILTER_MAP[uiKey]); if (idx === -1) continue; if (!activeFilters[uiKey].includes(String(row[idx]).trim())) return false; } return true; }); }
+    refreshActivePane(); $('#loader-overlay').fadeOut(200);
   }, 50);
 }
 
@@ -200,47 +126,137 @@ function pctClass(v, colName) {
   else return v < 75 ? 'pct-bad' : (v < 90 ? 'pct-warn' : 'pct-good');
 }
 
-function formatCrores(val) {
-    if (typeof val !== 'number' || isNaN(val)) return val;
-    let cr = val / 10000000;
-    return parseFloat(cr.toFixed(3)) + ' Cr';
-}
+function formatCrores(val) { if (typeof val !== 'number' || isNaN(val)) return val; return parseFloat((val / 10000000).toFixed(3)) + ' Cr'; }
 
 function syncFrozenColumns(api, numFixed) {
     setTimeout(() => {
-        let $table = $(api.table().node());
-        let $headerCells = $table.find('thead tr:first-child th');
-        let $gtCells = $table.find('thead tr.grandtotal-row th');
-        
+        let $table = $(api.table().node()); let $headerCells = $table.find('thead tr:first-child th'); let $gtCells = $table.find('thead tr.grandtotal-row th');
         $headerCells.each(function(index) {
-            let $th = $(this);
-            let $gtTh = $gtCells.eq(index);
-            
-            if ($th.hasClass('dtfc-fixed-left')) {
-                $gtTh.addClass('dtfc-fixed-left').css({
-                    'position': 'sticky',
-                    'left': $th.css('left'),
-                    'z-index': '11',
-                    'background-color': 'var(--navy-light)',
-                    'color': 'var(--minutes-yellow)'
-                });
-            } else {
-                $gtTh.removeClass('dtfc-fixed-left').css({
-                    'position': 'relative',
-                    'left': 'auto',
-                    'z-index': '1'
-                });
-            }
-            $th.removeClass('boundary-col');
-            $gtTh.removeClass('boundary-col');
+            let $th = $(this); let $gtTh = $gtCells.eq(index);
+            if ($th.hasClass('dtfc-fixed-left')) $gtTh.addClass('dtfc-fixed-left').css({'position': 'sticky', 'left': $th.css('left'), 'z-index': '11', 'background-color': 'var(--navy-light)', 'color': 'var(--minutes-yellow)'});
+            else $gtTh.removeClass('dtfc-fixed-left').css({'position': 'relative', 'left': 'auto', 'z-index': '1'});
+            $th.removeClass('boundary-col'); $gtTh.removeClass('boundary-col');
         });
-
-        if (numFixed > 0) {
-            $table.find('tr').each(function() {
-                $(this).find('th:nth-child(' + numFixed + '), td:nth-child(' + numFixed + ')').addClass('boundary-col');
-            });
-        }
+        if (numFixed > 0) $table.find('tr').each(function() { $(this).find('th:nth-child(' + numFixed + '), td:nth-child(' + numFixed + ')').addClass('boundary-col'); });
     }, 50); 
+}
+
+// ==========================================
+// 🔴 DOH PIVOT TABLE AGGREGATION LOGIC
+// ==========================================
+function renderDohTab() {
+  $('#doh-status').text(`Building DOH Matrix...`);
+  const activeKeys = $('#doh-pane .sub-tab.active').data('keys').split(',');
+  const idxMap = activeKeys.map(k => getColIdx(KEY_MAPPINGS_DRY[k] || [k]));
+  
+  let dohIdx = getColIdx(['doh_bucket', 'doh bucket']);
+  let attIdx = getColIdx(['attainment_bucket', 'attainment bucket']);
+  
+  if (dohIdx === -1 || attIdx === -1) { $('#tbl-doh').html('<tr><td class="text-danger p-3 fw-bold">Error: "doh_bucket" or "attainment_bucket" columns not found in raw data.</td></tr>'); return; }
+  
+  let buckets = {}; let rawRows = [];
+  FILTERED_DATA.forEach(row => {
+      let doh = String(row[dohIdx] || 'Unassigned').trim();
+      let att = String(row[attIdx] || 'Unassigned').trim();
+      if(!buckets[doh]) buckets[doh] = new Set();
+      buckets[doh].add(att);
+      let keyParts = idxMap.map(idx => idx >= 0 ? (String(row[idx]||'Unassigned').trim()||'Unassigned') : 'Unassigned');
+      rawRows.push({ keys: keyParts, doh: doh, att: att });
+  });
+  
+  let sortedDoh = Object.keys(buckets).sort(); let cols = [];
+  sortedDoh.forEach(d => { Array.from(buckets[d]).sort().forEach(a => cols.push({doh: d, att: a})); });
+  
+  let tree = {}; 
+  rawRows.forEach(r => {
+      let path = [];
+      r.keys.forEach((k, depth) => {
+          path.push(k); let pathStr = path.join('|||');
+          if(!tree[pathStr]) tree[pathStr] = { name: k, depth: depth, path: pathStr, counts: {} };
+          let colKey = r.doh + '|' + r.att;
+          tree[pathStr].counts[colKey] = (tree[pathStr].counts[colKey] || 0) + 1; // Counts FSNs
+      });
+  });
+  
+  let thead1 = `<tr><th rowspan="2" class="dtfc-fixed-left boundary-col" style="z-index:12 !important; vertical-align:middle;">Hierarchy</th>`;
+  let thead2 = `<tr>`;
+  sortedDoh.forEach(d => {
+      let atts = Array.from(buckets[d]).sort();
+      thead1 += `<th colspan="${atts.length}" class="text-center" style="border-bottom: 2px solid #64748b !important;">${d}</th>`;
+      atts.forEach(a => { thead2 += `<th class="text-center">${a}</th>`; });
+  });
+  thead1 += `</tr>`; thead2 += `</tr>`;
+  
+  let sortedPaths = Object.keys(tree).sort(); let tbody = ``;
+  sortedPaths.forEach(p => {
+      let node = tree[p]; let indent = node.depth * 25;
+      let isLeaf = node.depth === activeKeys.length - 1;
+      let safePath = p.replace(/['"]/g, ''); 
+      let icon = isLeaf ? `<span style="display:inline-block; width:12px; margin-right:8px;"></span>` : `<i class="bi bi-chevron-down toggle-icon text-danger" style="cursor:pointer;" onclick="toggleDohRow('${safePath}')"></i>`;
+      let bgClass = node.depth === 0 ? 'doh-l1' : '';
+      
+      let rowHtml = `<tr class="doh-row ${bgClass}" data-path="${safePath}" data-depth="${node.depth}" ${node.depth > 0 ? 'style="display:none;"' : ''}>`;
+      rowHtml += `<td class="dtfc-fixed-left boundary-col" style="padding-left: ${indent + 15}px !important; white-space:nowrap;">${icon} <span class="fw-bold">${node.name}</span></td>`;
+      cols.forEach(c => {
+          let val = node.counts[c.doh + '|' + c.att] || 0;
+          rowHtml += `<td class="text-center">${val > 0 ? val.toLocaleString() : '-'}</td>`;
+      });
+      rowHtml += `</tr>`; tbody += rowHtml;
+  });
+  
+  if ($.fn.DataTable.isDataTable('#tbl-doh')) $('#tbl-doh').DataTable().destroy();
+  $('#tbl-doh').html(`<thead>${thead1}${thead2}</thead><tbody>${tbody}</tbody>`);
+  
+  $('#tbl-doh').DataTable({ ordering: false, paging: false, scrollY: '60vh', scrollX: true, scrollCollapse: true, info: false, fixedColumns: { leftColumns: 1 }, dom: 't', drawCallback: function() { syncFrozenColumns(this.api(), 1); } });
+  setTimeout(() => { $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust(); }, 150);
+}
+
+window.toggleDohRow = function(path) {
+    let $icon = $(`tr.doh-row[data-path="${path}"] .toggle-icon`);
+    let isCollapsed = $icon.hasClass('bi-chevron-right');
+    let targetDepth = parseInt($(`tr.doh-row[data-path="${path}"]`).attr('data-depth')) + 1;
+    
+    if (isCollapsed) {
+        $icon.removeClass('bi-chevron-right').addClass('bi-chevron-down');
+        $('.doh-row').each(function() {
+            let p = $(this).attr('data-path'); let d = parseInt($(this).attr('data-depth'));
+            if (p.startsWith(path + '|||') && d === targetDepth) $(this).show();
+        });
+    } else {
+        $icon.removeClass('bi-chevron-down').addClass('bi-chevron-right');
+        $('.doh-row').each(function() {
+            let p = $(this).attr('data-path');
+            if (p.startsWith(path + '|||') && p !== path) {
+                $(this).hide();
+                $(this).find('.toggle-icon').removeClass('bi-chevron-down').addClass('bi-chevron-right');
+            }
+        });
+    }
+    setTimeout(() => { $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust(); }, 50);
+}
+
+$(document).on('click', '.sub-tab', function() {
+  $(this).siblings().removeClass('active'); $(this).addClass('active'); refreshActivePane();
+});
+
+$(document).on('click', 'tr.group-header', function() {
+  let zoneSafe = $(this).data('zone'); let $wrapper = $(this).closest('.dataTables_wrapper');
+  let $children = $wrapper.find('tr.child-of-' + zoneSafe);
+  if ($(this).hasClass('collapsed')) { $(this).removeClass('collapsed'); $children.show(); } else { $(this).addClass('collapsed'); $children.hide(); }
+  $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
+});
+
+function switchTab(el) {
+  $('.pill-tab').removeClass('active'); $(el).addClass('active');
+  $('.content-pane').removeClass('active'); $('#' + $(el).data('pane')).addClass('active');
+  refreshActivePane();
+}
+
+function refreshActivePane() {
+  const pane = $('.content-pane.active').attr('id');
+  if (pane === 'detail-pane') renderDetailTab();
+  else if (pane === 'doh-pane') renderDohTab();
+  else renderActiveSubTab();
 }
 
 function aggregateDataDRY(keys) {
@@ -265,7 +281,6 @@ function aggregateDataDRY(keys) {
     
     totDs: getColIdx(['Total_DS_Count']), instDs: getColIdx(['Instock_DS_Count']), dsNorm: getColIdx(['DS_Norm']), dsMstnBase: getColIdx(['DS_MSTN']),
     dsMstnIt: getColIdx(['ds_mstn_it', 'DS MSTN IT']), instDsIt: getColIdx(['instock_it_ds_count', 'ds_instock_it', 'DS Instock IT']),
-    
     zonalIwit: getColIdx(['zonal_iwit_potential', 'zonal iwit potential'])
   };
 
@@ -280,8 +295,7 @@ function aggregateDataDRY(keys) {
         rollup_plan:0, rollup_base:0, gmv:0, exPo:0, poShort:0, exAtp:0, rollup_mstn:0, rollup_mstn_sch:0, rollup_mstn_po:0,
         p0_plan:0, p0_base:0, p0_gmv:0, p0_mstn:0, p0_mstn_sch:0, p0_mstn_po:0,
         last3po_sum:0, last3po_cnt:0, gmv_mstn:0, gmv_base:0, plan_till_hr:0, sale_till_hr:0,
-        totDs:0, instDs:0, dsNorm:0, dsMstnBase:0, dsMstnIt:0, instDsIt:0,
-        zonalIwit:0
+        totDs:0, instDs:0, dsNorm:0, dsMstnBase:0, dsMstnIt:0, instDsIt:0, zonalIwit:0
       };
     }
     
@@ -348,26 +362,8 @@ function aggregateDataMLE(keys) {
   return Object.values(result);
 }
 
-$(document).on('click', '.sub-tab', function() {
-  $('.sub-tab').removeClass('active'); $(this).addClass('active'); renderActiveSubTab();
-});
-
-$(document).on('click', 'tr.group-header', function() {
-  let zoneSafe = $(this).data('zone'); let $wrapper = $(this).closest('.dataTables_wrapper');
-  let $children = $wrapper.find('tr.child-of-' + zoneSafe);
-  if ($(this).hasClass('collapsed')) { $(this).removeClass('collapsed'); $children.show(); } 
-  else { $(this).addClass('collapsed'); $children.hide(); }
-  $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
-});
-
-function switchTab(el) {
-  $('.pill-tab').removeClass('active'); $(el).addClass('active');
-  $('.content-pane').removeClass('active'); $('#' + $(el).data('pane')).addClass('active');
-  if ($(el).data('pane') === 'detail-pane') renderDetailTab(); else renderActiveSubTab();
-}
-
 function renderActiveSubTab() {
-  const activeTab = $('.sub-tab.active'); const viewId = activeTab.data('view'); const keys = activeTab.data('keys').split(',');
+  const activeTab = $('#summary-pane .sub-tab.active'); const viewId = activeTab.data('view'); const keys = activeTab.data('keys').split(',');
   let rawRows = CURRENT_MODE === 'MLE' ? aggregateDataMLE(keys) : aggregateDataDRY(keys);
   
   let gt = CURRENT_MODE === 'DRY' 
@@ -553,9 +549,7 @@ function renderDetailTab() {
   });
 
   const displayData = validDetailData.slice(0, 5000); 
-  if (validDetailData.length > 5000) {
-    $('#detail-status').append(' <span class="text-danger">(Showing first 5,000 for browser speed. Use Filters to narrow down or export).</span>');
-  }
+  if (validDetailData.length > 5000) { $('#detail-status').append(' <span class="text-danger">(Showing first 5,000 for browser speed. Use Filters to narrow down or export).</span>'); }
 
   let gt = CURRENT_MODE === 'DRY' 
       ? { rollup_plan:0, rollup_base:0, gmv:0, p0_plan:0, p0_base:0, p0_gmv:0, qoh:0, dsRawAtp:0, openPo:0, exPo:0, poShort:0, exAtp:0, rollup_mstn:0, rollup_mstn_sch:0, rollup_mstn_po:0, p0_mstn:0, p0_mstn_sch:0, p0_mstn_po:0, last3po_sum:0, last3po_cnt:0, gmv_mstn:0, gmv_base:0, plan_till_hr:0, sale_till_hr:0, totDs:0, instDs:0, dsNorm:0, dsMstnBase:0, dsMstnIt:0, instDsIt:0, zonalIwit:0 }
@@ -715,61 +709,72 @@ function toggleFullScreen() {
 
 function exportVisibleTableCSV() {
   const activePane = $('.content-pane.active').attr('id');
-  let tableId = activePane === 'summary-pane' ? '#tbl-summary-dynamic' : '#tbl-detail';
+  let tableId = '';
+  if(activePane === 'summary-pane') tableId = '#tbl-summary-dynamic';
+  else if(activePane === 'detail-pane') tableId = '#tbl-detail';
+  else if(activePane === 'doh-pane') tableId = '#tbl-doh';
   
   if (!$.fn.DataTable.isDataTable(tableId)) return;
   const dt = $(tableId).DataTable();
+  let csv = []; 
   
-  let csv = []; let cols = dt.settings()[0].aoColumns;
-  let headers = [];
-  $(tableId).find('thead tr:first th').each(function() { headers.push('"' + $(this).text().replace(/"/g, '""') + '"'); });
-  csv.push(headers.join(','));
-
-  let gTotals = [];
-  $(tableId).find('thead tr.grandtotal-row th').each(function() { gTotals.push('"' + $(this).text().replace(/"/g, '""') + '"'); });
-  if(gTotals.length > 0) csv.push(gTotals.join(','));
-
-  let pctCols = CURRENT_MODE === 'DRY' 
-      ? ['BBD_MSTN%', 'BBD_MSTN_SCH%', 'BBD_MSTN_PO%', 'BBD_GMV_MSTN%', 'DS Instock %', 'DS Instock IT %', 'DS MSTN %', 'DS MSTN IT %', 'Fillrate %', 'BBD_attainment%']
-      : ['BBD_MSTN%', 'BBD_MSTN_NL-SH%', 'BBD_MSTN_SH-SH%', 'BBD_MSTN_SCH%', 'BBD_MSTN_PO%', 'BBD_attainment%'];
-
-  if (activePane === 'summary-pane') {
-      dt.rows({ search: 'applied' }).every(function () {
-         let rowDataObj = this.data(); let rowArr = [];
-         for (let i = 0; i < cols.length; i++) {
-             let dataProp = cols[i].mData; let val = rowDataObj[dataProp];
-             if (dataProp === 'GMV') val = formatCrores(val);
-             else if (pctCols.includes(dataProp) && val !== undefined && val !== '') val = val + (String(val).includes('%')?'':'%');
-             else if (typeof val === 'number') val = Math.round(val);
-             else if (val === undefined || val === null) val = '';
-
-             if (rowDataObj.__isGroupHeader) {
-                 if (i === 0) val = rowDataObj[dataProp];
-                 else if (i === 1) val = CURRENT_MODE === 'MLE' ? 'Buying FC Subtotal' : 'Zone Subtotal';
-                 else val = '';
-             }
-             rowArr.push('"' + String(val).replace(/"/g, '""') + '"');
-         }
-         csv.push(rowArr.join(','));
+  if(activePane === 'doh-pane') {
+      $(tableId).find('thead tr').each(function() {
+          let rowArr = []; $(this).find('th').each(function() { rowArr.push('"' + $(this).text().replace(/"/g, '""') + '"'); });
+          csv.push(rowArr.join(','));
+      });
+      $(tableId).find('tbody tr:visible').each(function() {
+          let rowArr = []; $(this).find('td').each(function() { rowArr.push('"' + $(this).text().replace(/"/g, '""') + '"'); });
+          csv.push(rowArr.join(','));
       });
   } else {
-      if (!window.DETAIL_EXPORT_DATA) return;
-      window.DETAIL_EXPORT_DATA.forEach(row => {
-         let rowArr = [];
-         for (let i = 0; i < cols.length; i++) {
-             let dataProp = cols[i].mData; let val = row[dataProp];
-             if (dataProp === 'GMV') val = formatCrores(val);
-             else if (pctCols.includes(dataProp) && val !== undefined && val !== '') val = val + (String(val).includes('%')?'':'%');
-             else if (typeof val === 'number') val = Math.round(val);
-             else if (val === undefined || val === null) val = '';
-             rowArr.push('"' + String(val).replace(/"/g, '""') + '"');
-         }
-         csv.push(rowArr.join(','));
-      });
+      let cols = dt.settings()[0].aoColumns;
+      let headers = [];
+      $(tableId).find('thead tr:first th').each(function() { headers.push('"' + $(this).text().replace(/"/g, '""') + '"'); });
+      csv.push(headers.join(','));
+      let gTotals = [];
+      $(tableId).find('thead tr.grandtotal-row th').each(function() { gTotals.push('"' + $(this).text().replace(/"/g, '""') + '"'); });
+      if(gTotals.length > 0) csv.push(gTotals.join(','));
+
+      let pctCols = CURRENT_MODE === 'DRY' 
+          ? ['BBD_MSTN%', 'BBD_MSTN_SCH%', 'BBD_MSTN_PO%', 'BBD_GMV_MSTN%', 'DS Instock %', 'DS Instock IT %', 'DS MSTN %', 'DS MSTN IT %', 'Fillrate %', 'BBD_attainment%']
+          : ['BBD_MSTN%', 'BBD_MSTN_NL-SH%', 'BBD_MSTN_SH-SH%', 'BBD_MSTN_SCH%', 'BBD_MSTN_PO%', 'BBD_attainment%'];
+
+      if (activePane === 'summary-pane') {
+          dt.rows({ search: 'applied' }).every(function () {
+             let rowDataObj = this.data(); let rowArr = [];
+             for (let i = 0; i < cols.length; i++) {
+                 let dataProp = cols[i].mData; let val = rowDataObj[dataProp];
+                 if (dataProp === 'GMV') val = formatCrores(val);
+                 else if (pctCols.includes(dataProp) && val !== undefined && val !== '') val = val + (String(val).includes('%')?'':'%');
+                 else if (typeof val === 'number') val = Math.round(val);
+                 else if (val === undefined || val === null) val = '';
+                 if (rowDataObj.__isGroupHeader) {
+                     if (i === 0) val = rowDataObj[dataProp];
+                     else if (i === 1) val = CURRENT_MODE === 'MLE' ? 'Buying FC Subtotal' : 'Zone Subtotal';
+                     else val = '';
+                 }
+                 rowArr.push('"' + String(val).replace(/"/g, '""') + '"');
+             }
+             csv.push(rowArr.join(','));
+          });
+      } else {
+          if (!window.DETAIL_EXPORT_DATA) return;
+          window.DETAIL_EXPORT_DATA.forEach(row => {
+             let rowArr = [];
+             for (let i = 0; i < cols.length; i++) {
+                 let dataProp = cols[i].mData; let val = row[dataProp];
+                 if (dataProp === 'GMV') val = formatCrores(val);
+                 else if (pctCols.includes(dataProp) && val !== undefined && val !== '') val = val + (String(val).includes('%')?'':'%');
+                 else if (typeof val === 'number') val = Math.round(val);
+                 else if (val === undefined || val === null) val = '';
+                 rowArr.push('"' + String(val).replace(/"/g, '""') + '"');
+             }
+             csv.push(rowArr.join(','));
+          });
+      }
   }
   const blob = new Blob(['\uFEFF' + csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a'); 
-  link.setAttribute('href', URL.createObjectURL(blob));
-  link.setAttribute('download', CURRENT_MODE + '_Dashboard_Export_' + new Date().toISOString().split('T')[0] + '.csv');
+  const link = document.createElement('a'); link.setAttribute('href', URL.createObjectURL(blob)); link.setAttribute('download', CURRENT_MODE + '_Dashboard_Export_' + new Date().toISOString().split('T')[0] + '.csv');
   document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
