@@ -2,7 +2,7 @@ let CURRENT_MODE = 'DRY';
 let CURRENT_LEVEL = 'BUYING'; 
 let SHOW_ATTAINMENT = false;
 
-// Memory Engine for DOH Pivot Sorting & Toggles
+// 🔴 State Memory for Matrix Table
 let DOH_SORT_COL = null;
 let DOH_SORT_DIR = -1; 
 let EXPANDED_DOH_NODES = new Set(); 
@@ -147,7 +147,7 @@ function syncFrozenColumns(api, numFixed) {
 }
 
 // ==========================================
-// 🔴 NATIVE HTML DOH MATRIX (FIXES ALIGNMENT & SORTING)
+// 🔴 SMART DOH PIVOT LOGIC (ALIGNMENT & SORTING FIX)
 // ==========================================
 window.sortDohMatrix = function(colKey) {
     if (DOH_SORT_COL === colKey) {
@@ -156,14 +156,14 @@ window.sortDohMatrix = function(colKey) {
         DOH_SORT_COL = colKey;
         DOH_SORT_DIR = -1; // Default to Highest-to-Lowest
     }
-    renderDohTab();
+    renderDohTab(); // Re-render triggers exact state sort
 }
 
 function renderDohTab() {
-  $('#doh-status').text(`Building DOH Matrix...`);
+  $('#doh-status').text(`Building Matrix...`);
   
   if ($.fn.DataTable.isDataTable('#tbl-doh')) {
-      $('#tbl-doh').DataTable().destroy(); // Strip DataTables completely from this view
+      $('#tbl-doh').DataTable().destroy(); 
   }
 
   const activeKeys = $('#doh-pane .sub-tab.active').data('keys').split(',');
@@ -198,12 +198,6 @@ function renderDohTab() {
   });
   
   let tree = {}; let parentMap = { "": [] }; 
-  let pathIdMap = {}; let pathCounter = 0;
-  
-  function getId(pathStr) {
-      if(!pathIdMap[pathStr]) pathIdMap[pathStr] = 'n_' + (++pathCounter);
-      return pathIdMap[pathStr];
-  }
 
   rawRows.forEach(r => {
       let path = [];
@@ -254,17 +248,18 @@ function renderDohTab() {
       children.forEach(p => {
           let node = tree[p]; let indent = node.depth * 25;
           let isLeaf = node.depth === activeKeys.length - 1;
-          let nodeId = getId(node.path);
-          let parentId = parentPath === "" ? "root" : getId(parentPath);
           
-          let isNodeExpanded = EXPANDED_DOH_NODES.has(nodeId);
-          let isVisibleRow = isVisiblePath && (node.depth === 0 || EXPANDED_DOH_NODES.has(parentId));
+          let encPath = encodeURIComponent(p);
+          let encParent = encodeURIComponent(parentPath);
+          
+          let isNodeExpanded = EXPANDED_DOH_NODES.has(p);
+          let isVisibleRow = isVisiblePath && (node.depth === 0 || EXPANDED_DOH_NODES.has(parentPath));
           
           let iconClass = isNodeExpanded ? 'bi-chevron-down' : 'bi-chevron-right';
-          let icon = isLeaf ? `<span style="display:inline-block; width:12px; margin-right:8px;"></span>` : `<i class="bi ${iconClass} toggle-icon text-danger" style="cursor:pointer;" onclick="toggleDohRow('${nodeId}')"></i>`;
+          let icon = isLeaf ? `<span style="display:inline-block; width:12px; margin-right:8px;"></span>` : `<i class="bi ${iconClass} toggle-icon text-danger" style="cursor:pointer;" onclick="toggleDohRow('${encPath}')"></i>`;
           let bgClass = node.depth === 0 ? 'doh-l1' : '';
           
-          let rowHtml = `<tr class="doh-row ${bgClass}" data-node-id="${nodeId}" data-parent-id="${parentId}" ${isVisibleRow ? '' : 'style="display:none;"'}>`;
+          let rowHtml = `<tr class="doh-row ${bgClass}" data-path="${encPath}" data-parent="${encParent}" ${isVisibleRow ? '' : 'style="display:none;"'}>`;
           rowHtml += `<td class="frozen-col" style="padding-left: ${indent + 15}px !important;">${icon} <span class="fw-bold">${node.name}</span></td>`;
           
           cols.forEach((c, cIdx) => {
@@ -280,34 +275,45 @@ function renderDohTab() {
   
   buildTreeHtml("", true);
   $('#tbl-doh').html(`<thead>${thead1}${thead2}</thead><tbody>${tbody}</tbody>`);
+
+  // 🔴 Dynamic Height Anchor for Perfect Headers
+  setTimeout(() => {
+      let topHeight = $('#tbl-doh thead tr:nth-child(1) th').not('.frozen-col').first().outerHeight();
+      if(topHeight) {
+          $('#tbl-doh thead tr:nth-child(2) th').css('top', (topHeight - 1) + 'px');
+      }
+  }, 50);
 }
 
-// 🔴 High Speed Toggle Logic for Native Table
-window.toggleDohRow = function(nodeId) {
-    let $icon = $(`tr[data-node-id="${nodeId}"] .toggle-icon`);
+// 🔴 Flawless State Memory Toggle Logic
+window.toggleDohRow = function(encodedPath) {
+    let path = decodeURIComponent(encodedPath);
+    let $icon = $(`tr[data-path="${encodedPath}"] .toggle-icon`);
     let isCollapsed = $icon.hasClass('bi-chevron-right');
     
     if (isCollapsed) {
         $icon.removeClass('bi-chevron-right').addClass('bi-chevron-down');
-        EXPANDED_DOH_NODES.add(nodeId);
-        $(`tr[data-parent-id="${nodeId}"]`).show(); 
+        EXPANDED_DOH_NODES.add(path);
+        $(`tr[data-parent="${encodedPath}"]`).show(); 
     } else {
         $icon.removeClass('bi-chevron-down').addClass('bi-chevron-right');
-        EXPANDED_DOH_NODES.delete(nodeId);
-        hideDescendants(nodeId); 
+        EXPANDED_DOH_NODES.delete(path);
+        hideDescendants(encodedPath); 
     }
 }
 
-function hideDescendants(parentId) {
-    $(`tr[data-parent-id="${parentId}"]`).each(function() {
+function hideDescendants(encodedParentPath) {
+    $(`tr[data-parent="${encodedParentPath}"]`).each(function() {
         $(this).hide();
-        let childId = $(this).attr('data-node-id');
+        let encodedChildPath = $(this).attr('data-path');
+        let rawChildPath = decodeURIComponent(encodedChildPath);
+        
         let $icon = $(this).find('.toggle-icon');
-        if ($icon.length && $icon.hasClass('bi-chevron-down')) {
+        if ($icon.length && EXPANDED_DOH_NODES.has(rawChildPath)) {
             $icon.removeClass('bi-chevron-down').addClass('bi-chevron-right');
-            EXPANDED_DOH_NODES.delete(childId);
+            EXPANDED_DOH_NODES.delete(rawChildPath);
         }
-        hideDescendants(childId);
+        hideDescendants(encodedChildPath);
     });
 }
 
@@ -827,6 +833,7 @@ function exportVisibleTableCSV() {
              else if (pctCols.includes(dataProp) && val !== undefined && val !== '') val = val + (String(val).includes('%')?'':'%');
              else if (typeof val === 'number') val = Math.round(val);
              else if (val === undefined || val === null) val = '';
+
              if (rowDataObj.__isGroupHeader) {
                  if (i === 0) val = rowDataObj[dataProp];
                  else if (i === 1) val = CURRENT_MODE === 'MLE' ? 'Buying FC Subtotal' : 'Zone Subtotal';
