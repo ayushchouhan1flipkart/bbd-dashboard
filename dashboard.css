@@ -70,8 +70,27 @@ tr.group-header.collapsed .toggle-icon { transform: rotate(-90deg); }
 .info-note { font-size: 0.7rem; color: #64748b; margin-top: 5px; font-weight: 600; display:flex; align-items:center; }
 .updated-time-badge { background-color: #e2e8f0; color: #334155; font-weight: 700; padding: 5px 10px; border-radius: 6px; font-size: 0.75rem; border: 1px solid #cbd5e1; }
 
-/* ======== COMPACT TABULAR MATRIX STYLING ======== */
-#tbl-doh { border-collapse: collapse !important; border: 1px solid #cbd5e1 !important; }
-#tbl-doh th, #tbl-doh td { border: 1px solid #94a3b8 !important; padding: 3px 6px !important; font-size: 0.68rem; }
-#tbl-doh thead th { background-color: var(--navy-dark) !important; color: #f8fafc !important; border-bottom: 1px solid #94a3b8 !important; }
-#tbl-doh tbody td.dtfc-fixed-left { border-right: 2px solid #64748b !important; }
+/* ======== STRICT TABULAR MATRIX STYLING ======== */
+#tbl-doh { border-collapse: collapse !important; border: 1px solid #cbd5e1 !important; width: 100% !important; }
+#tbl-doh th, #tbl-doh td { 
+    border: 1px solid #cbd5e1 !important; 
+    padding: 6px 8px !important; 
+    font-size: 0.68rem; 
+    text-align: center !important;
+    min-width: 65px; /* Forces alignment so headers and body don't shift */
+}
+#tbl-doh thead th { 
+    background-color: var(--navy-dark) !important; 
+    color: #f8fafc !important; 
+    border-bottom: 2px solid #94a3b8 !important; 
+    border-top: 1px solid #334155 !important;
+}
+#tbl-doh tbody td.dtfc-fixed-left { border-right: 2px solid #475569 !important; text-align: left !important; }
+
+/* Heavy boundary line between major DOH Buckets */
+.doh-bucket-divider { border-left: 2px solid #94a3b8 !important; }
+table.dataTable tbody td.doh-bucket-divider { border-left: 2px solid #94a3b8 !important; }
+
+/* Sorting Click Hover */
+.sortable-col { cursor: pointer; transition: background-color 0.2s; }
+.sortable-col:hover { background-color: #334155 !important; color: var(--minutes-yellow) !important; }
