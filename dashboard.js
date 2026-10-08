@@ -154,10 +154,13 @@ function renderDohTab() {
   
   if (dohIdx === -1 || attIdx === -1) { $('#tbl-doh').html('<tr><td class="text-danger p-3 fw-bold">Error: "doh_bucket" or "attainment_bucket" columns not found in raw data.</td></tr>'); return; }
   
-  // Custom Weights to force strict column sorting
-  const dohWeights = {"0":1, "'0":1, "<2":2, "'<2":2, "2-5":3, "'2-5":3, "5-10":4, "'5-10":4, "10-12":5, "'10-12":5, "12-15":6, "'12-15":6, ">15":7, "'>15":7};
-  const attWeights = {"<70":1, "'<70":1, "70-120":2, "'70-120":2, "120-140":3, "'120-140":3, "140-200":4, "'140-200":4, ">200":5, "'>200":5};
-  let getW = (map, val) => map[val.trim()] || 99;
+  // Custom Weights to force strict column sorting (removes invisible quotes automatically)
+  function getW(map, val) {
+      let cleanVal = String(val).trim().replace(/^'/, '');
+      return map[cleanVal] || 99;
+  }
+  const dohWeights = {"0":1, "<2":2, "2-5":3, "5-10":4, "10-12":5, "12-15":6, ">15":7};
+  const attWeights = {"<70":1, "70-120":2, "120-140":3, "140-200":4, ">200":5};
 
   let buckets = {}; let rawRows = [];
   FILTERED_DATA.forEach(row => {
@@ -169,7 +172,6 @@ function renderDohTab() {
       rawRows.push({ keys: keyParts, doh: doh, att: att });
   });
   
-  // Apply Custom Column Sorting
   let sortedDoh = Object.keys(buckets).sort((a,b) => getW(dohWeights, a) - getW(dohWeights, b));
   let cols = [];
   sortedDoh.forEach(d => { 
@@ -679,9 +681,7 @@ function renderDetailTab() {
     title: c, data: c,
     render: function (val, type) {
       if (type !== 'display') return val;
-      
       if (c === 'GMV') return formatCrores(val);
-      
       if (pctCols.includes(c)) return '<span class="' + pctClass(parseFloat(val)||0, c) + '">' + val + (String(val).includes('%')?'':'%') + '</span>';
       if (typeof val === 'number') return Math.round(val).toLocaleString();
       return val || '';
@@ -758,6 +758,7 @@ function exportVisibleTableCSV() {
                  else if (pctCols.includes(dataProp) && val !== undefined && val !== '') val = val + (String(val).includes('%')?'':'%');
                  else if (typeof val === 'number') val = Math.round(val);
                  else if (val === undefined || val === null) val = '';
+
                  if (rowDataObj.__isGroupHeader) {
                      if (i === 0) val = rowDataObj[dataProp];
                      else if (i === 1) val = CURRENT_MODE === 'MLE' ? 'Buying FC Subtotal' : 'Zone Subtotal';
