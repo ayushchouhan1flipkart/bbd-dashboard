@@ -147,7 +147,7 @@ function syncFrozenColumns(api, numFixed) {
 }
 
 // ==========================================
-// 🔴 SMART DOH PIVOT LOGIC (ALIGNMENT & SORTING FIX)
+// 🔴 NATIVE HTML DOH MATRIX (FIXES ALIGNMENT & SORTING)
 // ==========================================
 window.sortDohMatrix = function(colKey) {
     if (DOH_SORT_COL === colKey) {
@@ -161,6 +161,11 @@ window.sortDohMatrix = function(colKey) {
 
 function renderDohTab() {
   $('#doh-status').text(`Building DOH Matrix...`);
+  
+  if ($.fn.DataTable.isDataTable('#tbl-doh')) {
+      $('#tbl-doh').DataTable().destroy(); // Strip DataTables completely from this view
+  }
+
   const activeKeys = $('#doh-pane .sub-tab.active').data('keys').split(',');
   const idxMap = activeKeys.map(k => getColIdx(KEY_MAPPINGS_DRY[k] || [k]));
   
@@ -169,7 +174,6 @@ function renderDohTab() {
   
   if (dohIdx === -1 || attIdx === -1) { $('#tbl-doh').html('<tr><td class="text-danger p-3 fw-bold">Error: "doh_bucket" or "attainment_bucket" columns not found in raw data.</td></tr>'); return; }
   
-  // Custom Weights to force strict column sorting (removes invisible quotes automatically)
   function getW(map, val) {
       let cleanVal = String(val).replace(/['"\s]/g, ''); 
       return map[cleanVal] || 99;
@@ -193,7 +197,6 @@ function renderDohTab() {
       Array.from(buckets[d]).sort((a,b) => getW(attWeights, a) - getW(attWeights, b)).forEach(a => cols.push({doh: d, att: a})); 
   });
   
-  // Build Hierarchical Tree using high-speed Maps
   let tree = {}; let parentMap = { "": [] }; 
   let pathIdMap = {}; let pathCounter = 0;
   
@@ -219,29 +222,27 @@ function renderDohTab() {
       }
   });
   
-  // Headers with Thick Borders
-  let thead1 = `<tr><th rowspan="2" class="dtfc-fixed-left boundary-col" style="z-index:12 !important; vertical-align:middle;">Hierarchy</th>`;
+  // Headers with Thick Border Injection
+  let thead1 = `<tr><th rowspan="2" class="frozen-col">Hierarchy</th>`;
   let thead2 = `<tr>`;
   sortedDoh.forEach((d, dIdx) => {
       let atts = Array.from(buckets[d]).sort((a,b) => getW(attWeights, a) - getW(attWeights, b));
-      let dividerClass = dIdx > 0 ? 'doh-bucket-divider' : '';
-      thead1 += `<th colspan="${atts.length}" class="text-center ${dividerClass}">${d}</th>`;
+      let dividerClass = dIdx > 0 ? 'doh-divider' : '';
+      thead1 += `<th colspan="${atts.length}" class="${dividerClass}">${d}</th>`;
       atts.forEach((a, aIdx) => { 
           let colKey = d + '|' + a;
-          let aDivider = aIdx === 0 && dIdx > 0 ? 'doh-bucket-divider' : '';
+          let aDivider = aIdx === 0 && dIdx > 0 ? 'doh-divider' : '';
           let sortIcon = DOH_SORT_COL === colKey ? (DOH_SORT_DIR === -1 ? ' <i class="bi bi-arrow-down-short text-warning"></i>' : ' <i class="bi bi-arrow-up-short text-warning"></i>') : '';
-          thead2 += `<th class="text-center sortable-col ${aDivider}" onclick="sortDohMatrix('${colKey}')" title="Click to sort">${a}${sortIcon}</th>`; 
+          thead2 += `<th class="sortable-col ${aDivider}" onclick="sortDohMatrix('${colKey}')" title="Click to sort">${a}${sortIcon}</th>`; 
       });
   });
   thead1 += `</tr>`; thead2 += `</tr>`;
   
   let tbody = ``;
   
-  // Recursive engine to render rows AND maintain sorting/open states
   function buildTreeHtml(parentPath, isVisiblePath) {
       let children = parentMap[parentPath] || [];
       
-      // Real-time hierarchy sorting
       children.sort((a, b) => {
           if (!DOH_SORT_COL) return a.localeCompare(b);
           let valA = tree[a].counts[DOH_SORT_COL] || 0;
@@ -264,12 +265,12 @@ function renderDohTab() {
           let bgClass = node.depth === 0 ? 'doh-l1' : '';
           
           let rowHtml = `<tr class="doh-row ${bgClass}" data-node-id="${nodeId}" data-parent-id="${parentId}" ${isVisibleRow ? '' : 'style="display:none;"'}>`;
-          rowHtml += `<td class="dtfc-fixed-left boundary-col" style="padding-left: ${indent + 15}px !important; white-space:nowrap;">${icon} <span class="fw-bold">${node.name}</span></td>`;
+          rowHtml += `<td class="frozen-col" style="padding-left: ${indent + 15}px !important;">${icon} <span class="fw-bold">${node.name}</span></td>`;
           
           cols.forEach((c, cIdx) => {
               let val = node.counts[c.doh + '|' + c.att] || 0;
-              let isDivider = cIdx > 0 && cols[cIdx].doh !== cols[cIdx-1].doh ? 'doh-bucket-divider' : '';
-              rowHtml += `<td class="text-center ${isDivider}">${val > 0 ? val.toLocaleString() : '-'}</td>`;
+              let isDivider = cIdx > 0 && cols[cIdx].doh !== cols[cIdx-1].doh ? 'doh-divider' : '';
+              rowHtml += `<td class="${isDivider}">${val > 0 ? val.toLocaleString() : '-'}</td>`;
           });
           rowHtml += `</tr>`; tbody += rowHtml;
           
@@ -278,15 +279,10 @@ function renderDohTab() {
   }
   
   buildTreeHtml("", true);
-  
-  if ($.fn.DataTable.isDataTable('#tbl-doh')) $('#tbl-doh').DataTable().destroy();
   $('#tbl-doh').html(`<thead>${thead1}${thead2}</thead><tbody>${tbody}</tbody>`);
-  
-  $('#tbl-doh').DataTable({ ordering: false, paging: false, scrollY: '60vh', scrollX: true, scrollCollapse: true, info: false, fixedColumns: { leftColumns: 1 }, dom: 't', drawCallback: function() { syncFrozenColumns(this.api(), 1); } });
-  setTimeout(() => { $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust(); }, 150);
 }
 
-// 🔴 High Speed Toggle Logic
+// 🔴 High Speed Toggle Logic for Native Table
 window.toggleDohRow = function(nodeId) {
     let $icon = $(`tr[data-node-id="${nodeId}"] .toggle-icon`);
     let isCollapsed = $icon.hasClass('bi-chevron-right');
@@ -300,7 +296,6 @@ window.toggleDohRow = function(nodeId) {
         EXPANDED_DOH_NODES.delete(nodeId);
         hideDescendants(nodeId); 
     }
-    setTimeout(() => { $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust(); }, 10);
 }
 
 function hideDescendants(parentId) {
@@ -793,66 +788,68 @@ function exportVisibleTableCSV() {
   else if(activePane === 'detail-pane') tableId = '#tbl-detail';
   else if(activePane === 'doh-pane') tableId = '#tbl-doh';
   
-  if (!$.fn.DataTable.isDataTable(tableId)) return;
-  const dt = $(tableId).DataTable();
-  let csv = []; 
-  
   if(activePane === 'doh-pane') {
-      $(tableId).find('thead tr').each(function() {
+      let csv = []; 
+      $('#tbl-doh thead tr').each(function() {
           let rowArr = []; $(this).find('th').each(function() { rowArr.push('"' + $(this).text().replace(/"/g, '""') + '"'); });
           csv.push(rowArr.join(','));
       });
-      $(tableId).find('tbody tr:visible').each(function() {
+      $('#tbl-doh tbody tr:visible').each(function() {
           let rowArr = []; $(this).find('td').each(function() { rowArr.push('"' + $(this).text().replace(/"/g, '""') + '"'); });
           csv.push(rowArr.join(','));
       });
+      const blob = new Blob(['\uFEFF' + csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a'); link.setAttribute('href', URL.createObjectURL(blob)); link.setAttribute('download', CURRENT_MODE + '_DOH_Matrix_' + new Date().toISOString().split('T')[0] + '.csv');
+      document.body.appendChild(link); link.click(); document.body.removeChild(link);
+      return;
+  }
+  
+  if (!$.fn.DataTable.isDataTable(tableId)) return;
+  const dt = $(tableId).DataTable();
+  let csv = []; let cols = dt.settings()[0].aoColumns;
+  let headers = [];
+  $(tableId).find('thead tr:first th').each(function() { headers.push('"' + $(this).text().replace(/"/g, '""') + '"'); });
+  csv.push(headers.join(','));
+  let gTotals = [];
+  $(tableId).find('thead tr.grandtotal-row th').each(function() { gTotals.push('"' + $(this).text().replace(/"/g, '""') + '"'); });
+  if(gTotals.length > 0) csv.push(gTotals.join(','));
+
+  let pctCols = CURRENT_MODE === 'DRY' 
+      ? ['BBD_MSTN%', 'BBD_MSTN_SCH%', 'BBD_MSTN_PO%', 'BBD_GMV_MSTN%', 'DS Instock %', 'DS Instock IT %', 'DS MSTN %', 'DS MSTN IT %', 'Fillrate %', 'BBD_attainment%']
+      : ['BBD_MSTN%', 'BBD_MSTN_NL-SH%', 'BBD_MSTN_SH-SH%', 'BBD_MSTN_SCH%', 'BBD_MSTN_PO%', 'BBD_attainment%'];
+
+  if (activePane === 'summary-pane') {
+      dt.rows({ search: 'applied' }).every(function () {
+         let rowDataObj = this.data(); let rowArr = [];
+         for (let i = 0; i < cols.length; i++) {
+             let dataProp = cols[i].mData; let val = rowDataObj[dataProp];
+             if (dataProp === 'GMV') val = formatCrores(val);
+             else if (pctCols.includes(dataProp) && val !== undefined && val !== '') val = val + (String(val).includes('%')?'':'%');
+             else if (typeof val === 'number') val = Math.round(val);
+             else if (val === undefined || val === null) val = '';
+             if (rowDataObj.__isGroupHeader) {
+                 if (i === 0) val = rowDataObj[dataProp];
+                 else if (i === 1) val = CURRENT_MODE === 'MLE' ? 'Buying FC Subtotal' : 'Zone Subtotal';
+                 else val = '';
+             }
+             rowArr.push('"' + String(val).replace(/"/g, '""') + '"');
+         }
+         csv.push(rowArr.join(','));
+      });
   } else {
-      let cols = dt.settings()[0].aoColumns;
-      let headers = [];
-      $(tableId).find('thead tr:first th').each(function() { headers.push('"' + $(this).text().replace(/"/g, '""') + '"'); });
-      csv.push(headers.join(','));
-      let gTotals = [];
-      $(tableId).find('thead tr.grandtotal-row th').each(function() { gTotals.push('"' + $(this).text().replace(/"/g, '""') + '"'); });
-      if(gTotals.length > 0) csv.push(gTotals.join(','));
-
-      let pctCols = CURRENT_MODE === 'DRY' 
-          ? ['BBD_MSTN%', 'BBD_MSTN_SCH%', 'BBD_MSTN_PO%', 'BBD_GMV_MSTN%', 'DS Instock %', 'DS Instock IT %', 'DS MSTN %', 'DS MSTN IT %', 'Fillrate %', 'BBD_attainment%']
-          : ['BBD_MSTN%', 'BBD_MSTN_NL-SH%', 'BBD_MSTN_SH-SH%', 'BBD_MSTN_SCH%', 'BBD_MSTN_PO%', 'BBD_attainment%'];
-
-      if (activePane === 'summary-pane') {
-          dt.rows({ search: 'applied' }).every(function () {
-             let rowDataObj = this.data(); let rowArr = [];
-             for (let i = 0; i < cols.length; i++) {
-                 let dataProp = cols[i].mData; let val = rowDataObj[dataProp];
-                 if (dataProp === 'GMV') val = formatCrores(val);
-                 else if (pctCols.includes(dataProp) && val !== undefined && val !== '') val = val + (String(val).includes('%')?'':'%');
-                 else if (typeof val === 'number') val = Math.round(val);
-                 else if (val === undefined || val === null) val = '';
-
-                 if (rowDataObj.__isGroupHeader) {
-                     if (i === 0) val = rowDataObj[dataProp];
-                     else if (i === 1) val = CURRENT_MODE === 'MLE' ? 'Buying FC Subtotal' : 'Zone Subtotal';
-                     else val = '';
-                 }
-                 rowArr.push('"' + String(val).replace(/"/g, '""') + '"');
-             }
-             csv.push(rowArr.join(','));
-          });
-      } else {
-          if (!window.DETAIL_EXPORT_DATA) return;
-          window.DETAIL_EXPORT_DATA.forEach(row => {
-             let rowArr = [];
-             for (let i = 0; i < cols.length; i++) {
-                 let dataProp = cols[i].mData; let val = row[dataProp];
-                 if (dataProp === 'GMV') val = formatCrores(val);
-                 else if (pctCols.includes(dataProp) && val !== undefined && val !== '') val = val + (String(val).includes('%')?'':'%');
-                 else if (typeof val === 'number') val = Math.round(val);
-                 else if (val === undefined || val === null) val = '';
-                 rowArr.push('"' + String(val).replace(/"/g, '""') + '"');
-             }
-             csv.push(rowArr.join(','));
-          });
-      }
+      if (!window.DETAIL_EXPORT_DATA) return;
+      window.DETAIL_EXPORT_DATA.forEach(row => {
+         let rowArr = [];
+         for (let i = 0; i < cols.length; i++) {
+             let dataProp = cols[i].mData; let val = row[dataProp];
+             if (dataProp === 'GMV') val = formatCrores(val);
+             else if (pctCols.includes(dataProp) && val !== undefined && val !== '') val = val + (String(val).includes('%')?'':'%');
+             else if (typeof val === 'number') val = Math.round(val);
+             else if (val === undefined || val === null) val = '';
+             rowArr.push('"' + String(val).replace(/"/g, '""') + '"');
+         }
+         csv.push(rowArr.join(','));
+      });
   }
   const blob = new Blob(['\uFEFF' + csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a'); link.setAttribute('href', URL.createObjectURL(blob)); link.setAttribute('download', CURRENT_MODE + '_Dashboard_Export_' + new Date().toISOString().split('T')[0] + '.csv');
