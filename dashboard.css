@@ -51,7 +51,6 @@ table.dataTable thead tr.grandtotal-row th.dtfc-fixed-left { background-color: v
 table.dataTable tbody td.dtfc-fixed-left { background-color: #fff !important; z-index: 5 !important; }
 table.dataTable tbody tr.subtotal-row td.dtfc-fixed-left, table.dataTable tbody tr.group-header td.dtfc-fixed-left, table.dataTable tbody tr.doh-l1 td.dtfc-fixed-left { background-color: #d1d5db !important; }
 table.dataTable tbody tr:hover td.dtfc-fixed-left { background-color: #f1f5f9 !important; }
-.boundary-col { border-right: 2px solid #64748b !important; }
 
 .pct-good { color:#15803d; font-weight:800; }
 .pct-warn { color:#b45309; font-weight:800; }
@@ -70,26 +69,43 @@ tr.group-header.collapsed .toggle-icon { transform: rotate(-90deg); }
 .info-note { font-size: 0.7rem; color: #64748b; margin-top: 5px; font-weight: 600; display:flex; align-items:center; }
 .updated-time-badge { background-color: #e2e8f0; color: #334155; font-weight: 700; padding: 5px 10px; border-radius: 6px; font-size: 0.75rem; border: 1px solid #cbd5e1; }
 
-/* ======== STRICT TABULAR MATRIX STYLING ======== */
-#tbl-doh { border-collapse: collapse !important; border: 1px solid #cbd5e1 !important; width: 100% !important; }
+/* ======== STRICT TABULAR MATRIX STYLING (FIXED ALIGNMENT) ======== */
+#tbl-doh { 
+    border-collapse: separate !important; 
+    border-spacing: 0 !important;
+    table-layout: fixed !important; /* Forces rigid columns */
+    width: max-content !important; 
+}
 #tbl-doh th, #tbl-doh td { 
-    border: 1px solid #cbd5e1 !important; 
+    border-right: 1px solid #cbd5e1 !important; 
+    border-bottom: 1px solid #cbd5e1 !important; 
     padding: 6px 8px !important; 
     font-size: 0.68rem; 
     text-align: center !important;
-    min-width: 65px; /* Forces alignment so headers and body don't shift */
+    width: 80px !important;       /* Locks width */
+    min-width: 80px !important;   /* Locks width */
+    max-width: 80px !important;   /* Locks width */
+    overflow: hidden !important;
+    white-space: nowrap !important;
 }
 #tbl-doh thead th { 
     background-color: var(--navy-dark) !important; 
     color: #f8fafc !important; 
-    border-bottom: 2px solid #94a3b8 !important; 
     border-top: 1px solid #334155 !important;
 }
 #tbl-doh tbody td.dtfc-fixed-left { border-right: 2px solid #475569 !important; text-align: left !important; }
 
-/* Heavy boundary line between major DOH Buckets */
-.doh-bucket-divider { border-left: 2px solid #94a3b8 !important; }
-table.dataTable tbody td.doh-bucket-divider { border-left: 2px solid #94a3b8 !important; }
+/* Heavy thick boundary line between major DOH Buckets */
+.doh-bucket-divider { border-left: 3px solid #1e293b !important; }
+table.dataTable tbody td.doh-bucket-divider { border-left: 3px solid #1e293b !important; }
+
+/* Expanded hierarchy column width */
+#tbl-doh .boundary-col { 
+    width: 280px !important; 
+    min-width: 280px !important; 
+    max-width: 280px !important; 
+    text-align: left !important;
+}
 
 /* Sorting Click Hover */
 .sortable-col { cursor: pointer; transition: background-color 0.2s; }
