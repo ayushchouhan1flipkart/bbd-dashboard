@@ -142,7 +142,7 @@ function syncFrozenColumns(api, numFixed) {
 }
 
 // ==========================================
-// 🔴 CUSTOM SORTED COMPACT MATRIX LOGIC
+// 🔴 BULLETPROOF SORTED COMPACT MATRIX LOGIC
 // ==========================================
 function renderDohTab() {
   $('#doh-status').text(`Building DOH Matrix...`);
@@ -154,9 +154,9 @@ function renderDohTab() {
   
   if (dohIdx === -1 || attIdx === -1) { $('#tbl-doh').html('<tr><td class="text-danger p-3 fw-bold">Error: "doh_bucket" or "attainment_bucket" columns not found in raw data.</td></tr>'); return; }
   
-  // Custom Weights to force strict column sorting (removes invisible quotes automatically)
+  // Bulletproof mapping that ignores quotes and spaces from Excel exports
   function getW(map, val) {
-      let cleanVal = String(val).trim().replace(/^'/, '');
+      let cleanVal = String(val).replace(/['"\s]/g, ''); // Strips all invisible quotes and spaces
       return map[cleanVal] || 99;
   }
   const dohWeights = {"0":1, "<2":2, "2-5":3, "5-10":4, "10-12":5, "12-15":6, ">15":7};
