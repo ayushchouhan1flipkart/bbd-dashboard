@@ -33,78 +33,32 @@ h2 { font-size:1.3rem; font-weight:800; margin-bottom:0; color:var(--navy-dark);
 .content-pane { display:none; }
 .content-pane.active { display:block; }
 
-/* ======== CLEAN DATATABLES & FROZEN COLUMNS CSS ======== */
 table.dataTable { border-collapse: separate !important; border-spacing: 0 !important; margin: 0 !important; width: 100% !important; }
 .table { font-size: 0.72rem; }
 
-/* Scrolling Cells Layer (Bottom) */
 .dataTables_scrollBody table tbody td,
-.dataTables_scrollHeadInner table thead th {
-    position: relative !important;
-    z-index: 1 !important;
-}
-table.dataTable thead th {
-    background-color: var(--navy-dark) !important;
-    color: #f8fafc !important;
-    vertical-align: middle !important;
-    text-align: center !important;
-    white-space: nowrap !important;
-    padding: 10px 15px !important;
-    border-bottom: 1px solid var(--navy-light) !important;
-    font-weight: 600;
-}
-table.dataTable tbody td {
-    padding: 8px 15px !important;
-    white-space: nowrap !important;
-    border-bottom: 1px solid #e2e8f0 !important;
-    color: #334155;
-    font-weight: 600;
-    vertical-align: middle !important;
-    text-align: center !important;
-}
+.dataTables_scrollHeadInner table thead th { position: relative !important; z-index: 1 !important; background-clip: padding-box; }
 
-/* Grand Total & Subtotal Rows */
-tr.grandtotal-row th { 
-    background-color: var(--navy-light) !important; 
-    color: var(--minutes-yellow) !important; 
-    font-weight: 800 !important; 
-    border-bottom: 2px solid var(--navy-dark) !important; 
-    position: relative;
-    z-index: 1 !important;
-}
-tr.subtotal-row td, tr.group-header td { 
-    background-color: #d1d5db !important; 
-    color: var(--navy-dark) !important; 
-    font-weight: 800 !important; 
-}
+table.dataTable thead th { background-color: var(--navy-dark) !important; color: #f8fafc !important; vertical-align: middle !important; text-align: center !important; white-space: nowrap !important; padding: 10px 15px !important; border-bottom: 1px solid var(--navy-light) !important; font-weight: 600; }
+table.dataTable tbody td { padding: 8px 15px !important; white-space: nowrap !important; border-bottom: 1px solid #e2e8f0 !important; color: #334155; font-weight: 600; vertical-align: middle !important; text-align: center !important; }
 
-/* Frozen Cells Layer (Top) */
-table.dataTable thead th.dtfc-fixed-left,
-table.dataTable tbody td.dtfc-fixed-left,
-table.dataTable thead tr.grandtotal-row th.dtfc-fixed-left {
-    position: sticky !important;
-    border-right: none !important; /* Removes double border */
-}
+tr.grandtotal-row th { background-color: var(--navy-light) !important; color: var(--minutes-yellow) !important; font-weight: 800 !important; border-bottom: 2px solid var(--navy-dark) !important; position: relative; z-index: 1 !important; }
+tr.subtotal-row td, tr.group-header td, tr.doh-l1 td { background-color: #d1d5db !important; color: var(--navy-dark) !important; font-weight: 800 !important; }
 
-/* Base colors for frozen cells */
+table.dataTable thead th.dtfc-fixed-left, table.dataTable tbody td.dtfc-fixed-left, table.dataTable thead tr.grandtotal-row th.dtfc-fixed-left { position: sticky !important; border-right: none !important; }
 table.dataTable thead th.dtfc-fixed-left { background-color: var(--navy-dark) !important; z-index: 10 !important; }
 table.dataTable thead tr.grandtotal-row th.dtfc-fixed-left { background-color: var(--navy-light) !important; color: var(--minutes-yellow) !important; z-index: 11 !important; }
 table.dataTable tbody td.dtfc-fixed-left { background-color: #fff !important; z-index: 5 !important; }
-table.dataTable tbody tr.subtotal-row td.dtfc-fixed-left,
-table.dataTable tbody tr.group-header td.dtfc-fixed-left { background-color: #d1d5db !important; }
+table.dataTable tbody tr.subtotal-row td.dtfc-fixed-left, table.dataTable tbody tr.group-header td.dtfc-fixed-left, table.dataTable tbody tr.doh-l1 td.dtfc-fixed-left { background-color: #d1d5db !important; }
 table.dataTable tbody tr:hover td.dtfc-fixed-left { background-color: #f1f5f9 !important; }
-
-/* Enforce Single Solid Boundary Line */
-.boundary-col {
-    border-right: 2px solid #64748b !important;
-}
-/* ======================================================= */
+.boundary-col { border-right: 2px solid #64748b !important; }
 
 .pct-good { color:#15803d; font-weight:800; }
 .pct-warn { color:#b45309; font-weight:800; }
 .pct-bad  { color:#b91c1c; font-weight:800; }
 
-tr.group-header { cursor: pointer; }
+tr.group-header, tr.doh-row { cursor: pointer; transition: background-color 0.2s; }
+tr.doh-row:hover td { background-color: #f8fafc !important; }
 .toggle-icon { display: inline-block; color: var(--minutes-red); font-size: 0.8rem; margin-right: 8px; vertical-align: middle; transition: transform 0.2s ease-in-out; }
 tr.group-header.collapsed .toggle-icon { transform: rotate(-90deg); }
 .child-indent { display: inline-block; width: 12px; height: 10px; border-left: 2px solid #9ca3af; border-bottom: 2px solid #9ca3af; margin-right: 8px; margin-left: 6px; margin-top: -8px; border-bottom-left-radius: 4px; vertical-align: middle; }
