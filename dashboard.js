@@ -142,7 +142,7 @@ function syncFrozenColumns(api, numFixed) {
 }
 
 // ==========================================
-// 🔴 DOH PIVOT TABLE AGGREGATION LOGIC
+// 🔴 CUSTOM SORTED COMPACT MATRIX LOGIC
 // ==========================================
 function renderDohTab() {
   $('#doh-status').text(`Building DOH Matrix...`);
@@ -154,6 +154,11 @@ function renderDohTab() {
   
   if (dohIdx === -1 || attIdx === -1) { $('#tbl-doh').html('<tr><td class="text-danger p-3 fw-bold">Error: "doh_bucket" or "attainment_bucket" columns not found in raw data.</td></tr>'); return; }
   
+  // Custom Weights to force strict column sorting
+  const dohWeights = {"0":1, "'0":1, "<2":2, "'<2":2, "2-5":3, "'2-5":3, "5-10":4, "'5-10":4, "10-12":5, "'10-12":5, "12-15":6, "'12-15":6, ">15":7, "'>15":7};
+  const attWeights = {"<70":1, "'<70":1, "70-120":2, "'70-120":2, "120-140":3, "'120-140":3, "140-200":4, "'140-200":4, ">200":5, "'>200":5};
+  let getW = (map, val) => map[val.trim()] || 99;
+
   let buckets = {}; let rawRows = [];
   FILTERED_DATA.forEach(row => {
       let doh = String(row[dohIdx] || 'Unassigned').trim();
@@ -164,8 +169,12 @@ function renderDohTab() {
       rawRows.push({ keys: keyParts, doh: doh, att: att });
   });
   
-  let sortedDoh = Object.keys(buckets).sort(); let cols = [];
-  sortedDoh.forEach(d => { Array.from(buckets[d]).sort().forEach(a => cols.push({doh: d, att: a})); });
+  // Apply Custom Column Sorting
+  let sortedDoh = Object.keys(buckets).sort((a,b) => getW(dohWeights, a) - getW(dohWeights, b));
+  let cols = [];
+  sortedDoh.forEach(d => { 
+      Array.from(buckets[d]).sort((a,b) => getW(attWeights, a) - getW(attWeights, b)).forEach(a => cols.push({doh: d, att: a})); 
+  });
   
   let tree = {}; 
   rawRows.forEach(r => {
@@ -181,8 +190,8 @@ function renderDohTab() {
   let thead1 = `<tr><th rowspan="2" class="dtfc-fixed-left boundary-col" style="z-index:12 !important; vertical-align:middle;">Hierarchy</th>`;
   let thead2 = `<tr>`;
   sortedDoh.forEach(d => {
-      let atts = Array.from(buckets[d]).sort();
-      thead1 += `<th colspan="${atts.length}" class="text-center" style="border-bottom: 2px solid #64748b !important;">${d}</th>`;
+      let atts = Array.from(buckets[d]).sort((a,b) => getW(attWeights, a) - getW(attWeights, b));
+      thead1 += `<th colspan="${atts.length}" class="text-center">${d}</th>`;
       atts.forEach(a => { thead2 += `<th class="text-center">${a}</th>`; });
   });
   thead1 += `</tr>`; thead2 += `</tr>`;
