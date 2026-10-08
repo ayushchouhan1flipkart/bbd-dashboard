@@ -2,9 +2,10 @@ let CURRENT_MODE = 'DRY';
 let CURRENT_LEVEL = 'BUYING'; 
 let SHOW_ATTAINMENT = false;
 
-// Global Sorting State for DOH Pivot
+// Memory Engine for DOH Pivot Sorting & Toggles
 let DOH_SORT_COL = null;
-let DOH_SORT_DIR = -1; // -1 for High-to-Low, 1 for Low-to-High
+let DOH_SORT_DIR = -1; 
+let EXPANDED_DOH_NODES = new Set(); 
 
 let DATA_CACHE = { 'DRY': { RAW: null, HEADERS: [], COL_IDX: {}, lastUpdated: null }, 'MLE': { RAW: null, HEADERS: [], COL_IDX: {}, lastUpdated: null } };
 let RAW_DATA = [], FILTERED_DATA = [], COL_IDX = {}, HEADERS = [];
@@ -146,7 +147,7 @@ function syncFrozenColumns(api, numFixed) {
 }
 
 // ==========================================
-// 🔴 HIGHSPEED CUSTOM SORTED MATRIX LOGIC
+// 🔴 SMART DOH PIVOT LOGIC (ALIGNMENT & SORTING FIX)
 // ==========================================
 window.sortDohMatrix = function(colKey) {
     if (DOH_SORT_COL === colKey) {
@@ -168,7 +169,7 @@ function renderDohTab() {
   
   if (dohIdx === -1 || attIdx === -1) { $('#tbl-doh').html('<tr><td class="text-danger p-3 fw-bold">Error: "doh_bucket" or "attainment_bucket" columns not found in raw data.</td></tr>'); return; }
   
-  // Strict cleanup mappings
+  // Custom Weights to force strict column sorting (removes invisible quotes automatically)
   function getW(map, val) {
       let cleanVal = String(val).replace(/['"\s]/g, ''); 
       return map[cleanVal] || 99;
@@ -218,7 +219,7 @@ function renderDohTab() {
       }
   });
   
-  // Headers
+  // Headers with Thick Borders
   let thead1 = `<tr><th rowspan="2" class="dtfc-fixed-left boundary-col" style="z-index:12 !important; vertical-align:middle;">Hierarchy</th>`;
   let thead2 = `<tr>`;
   sortedDoh.forEach((d, dIdx) => {
@@ -235,11 +236,12 @@ function renderDohTab() {
   thead1 += `</tr>`; thead2 += `</tr>`;
   
   let tbody = ``;
-  // Recursive function to build and sort HTML Tree
-  function buildTreeHtml(parentPath) {
+  
+  // Recursive engine to render rows AND maintain sorting/open states
+  function buildTreeHtml(parentPath, isVisiblePath) {
       let children = parentMap[parentPath] || [];
       
-      // Sort the children based on active column or Alphabetical
+      // Real-time hierarchy sorting
       children.sort((a, b) => {
           if (!DOH_SORT_COL) return a.localeCompare(b);
           let valA = tree[a].counts[DOH_SORT_COL] || 0;
@@ -254,23 +256,28 @@ function renderDohTab() {
           let nodeId = getId(node.path);
           let parentId = parentPath === "" ? "root" : getId(parentPath);
           
-          let icon = isLeaf ? `<span style="display:inline-block; width:12px; margin-right:8px;"></span>` : `<i class="bi bi-chevron-down toggle-icon text-danger" style="cursor:pointer;" onclick="toggleDohRow('${nodeId}')"></i>`;
+          let isNodeExpanded = EXPANDED_DOH_NODES.has(nodeId);
+          let isVisibleRow = isVisiblePath && (node.depth === 0 || EXPANDED_DOH_NODES.has(parentId));
+          
+          let iconClass = isNodeExpanded ? 'bi-chevron-down' : 'bi-chevron-right';
+          let icon = isLeaf ? `<span style="display:inline-block; width:12px; margin-right:8px;"></span>` : `<i class="bi ${iconClass} toggle-icon text-danger" style="cursor:pointer;" onclick="toggleDohRow('${nodeId}')"></i>`;
           let bgClass = node.depth === 0 ? 'doh-l1' : '';
           
-          let rowHtml = `<tr class="doh-row ${bgClass}" data-node-id="${nodeId}" data-parent-id="${parentId}" ${node.depth > 0 ? 'style="display:none;"' : ''}>`;
+          let rowHtml = `<tr class="doh-row ${bgClass}" data-node-id="${nodeId}" data-parent-id="${parentId}" ${isVisibleRow ? '' : 'style="display:none;"'}>`;
           rowHtml += `<td class="dtfc-fixed-left boundary-col" style="padding-left: ${indent + 15}px !important; white-space:nowrap;">${icon} <span class="fw-bold">${node.name}</span></td>`;
           
           cols.forEach((c, cIdx) => {
               let val = node.counts[c.doh + '|' + c.att] || 0;
-              let isDivider = cols[cIdx].doh !== (cols[cIdx-1] ? cols[cIdx-1].doh : '') && cIdx > 0 ? 'doh-bucket-divider' : '';
+              let isDivider = cIdx > 0 && cols[cIdx].doh !== cols[cIdx-1].doh ? 'doh-bucket-divider' : '';
               rowHtml += `<td class="text-center ${isDivider}">${val > 0 ? val.toLocaleString() : '-'}</td>`;
           });
           rowHtml += `</tr>`; tbody += rowHtml;
           
-          buildTreeHtml(p); // recurse
+          buildTreeHtml(p, isVisibleRow && isNodeExpanded);
       });
   }
-  buildTreeHtml("");
+  
+  buildTreeHtml("", true);
   
   if ($.fn.DataTable.isDataTable('#tbl-doh')) $('#tbl-doh').DataTable().destroy();
   $('#tbl-doh').html(`<thead>${thead1}${thead2}</thead><tbody>${tbody}</tbody>`);
@@ -286,10 +293,12 @@ window.toggleDohRow = function(nodeId) {
     
     if (isCollapsed) {
         $icon.removeClass('bi-chevron-right').addClass('bi-chevron-down');
-        $(`tr[data-parent-id="${nodeId}"]`).show(); // Instantly show immediate children
+        EXPANDED_DOH_NODES.add(nodeId);
+        $(`tr[data-parent-id="${nodeId}"]`).show(); 
     } else {
         $icon.removeClass('bi-chevron-down').addClass('bi-chevron-right');
-        hideDescendants(nodeId); // Recursively hide everything below
+        EXPANDED_DOH_NODES.delete(nodeId);
+        hideDescendants(nodeId); 
     }
     setTimeout(() => { $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust(); }, 10);
 }
@@ -301,6 +310,7 @@ function hideDescendants(parentId) {
         let $icon = $(this).find('.toggle-icon');
         if ($icon.length && $icon.hasClass('bi-chevron-down')) {
             $icon.removeClass('bi-chevron-down').addClass('bi-chevron-right');
+            EXPANDED_DOH_NODES.delete(childId);
         }
         hideDescendants(childId);
     });
