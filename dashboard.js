@@ -2,6 +2,10 @@ let CURRENT_MODE = 'DRY';
 let CURRENT_LEVEL = 'BUYING'; 
 let SHOW_ATTAINMENT = false;
 
+// Global Sorting State for DOH Pivot
+let DOH_SORT_COL = null;
+let DOH_SORT_DIR = -1; // -1 for High-to-Low, 1 for Low-to-High
+
 let DATA_CACHE = { 'DRY': { RAW: null, HEADERS: [], COL_IDX: {}, lastUpdated: null }, 'MLE': { RAW: null, HEADERS: [], COL_IDX: {}, lastUpdated: null } };
 let RAW_DATA = [], FILTERED_DATA = [], COL_IDX = {}, HEADERS = [];
 
@@ -142,8 +146,18 @@ function syncFrozenColumns(api, numFixed) {
 }
 
 // ==========================================
-// 🔴 BULLETPROOF SORTED COMPACT MATRIX LOGIC
+// 🔴 HIGHSPEED CUSTOM SORTED MATRIX LOGIC
 // ==========================================
+window.sortDohMatrix = function(colKey) {
+    if (DOH_SORT_COL === colKey) {
+        DOH_SORT_DIR = DOH_SORT_DIR === -1 ? 1 : -1; 
+    } else {
+        DOH_SORT_COL = colKey;
+        DOH_SORT_DIR = -1; // Default to Highest-to-Lowest
+    }
+    renderDohTab();
+}
+
 function renderDohTab() {
   $('#doh-status').text(`Building DOH Matrix...`);
   const activeKeys = $('#doh-pane .sub-tab.active').data('keys').split(',');
@@ -154,9 +168,9 @@ function renderDohTab() {
   
   if (dohIdx === -1 || attIdx === -1) { $('#tbl-doh').html('<tr><td class="text-danger p-3 fw-bold">Error: "doh_bucket" or "attainment_bucket" columns not found in raw data.</td></tr>'); return; }
   
-  // Bulletproof mapping that ignores quotes and spaces from Excel exports
+  // Strict cleanup mappings
   function getW(map, val) {
-      let cleanVal = String(val).replace(/['"\s]/g, ''); // Strips all invisible quotes and spaces
+      let cleanVal = String(val).replace(/['"\s]/g, ''); 
       return map[cleanVal] || 99;
   }
   const dohWeights = {"0":1, "<2":2, "2-5":3, "5-10":4, "10-12":5, "12-15":6, ">15":7};
@@ -178,42 +192,85 @@ function renderDohTab() {
       Array.from(buckets[d]).sort((a,b) => getW(attWeights, a) - getW(attWeights, b)).forEach(a => cols.push({doh: d, att: a})); 
   });
   
-  let tree = {}; 
+  // Build Hierarchical Tree using high-speed Maps
+  let tree = {}; let parentMap = { "": [] }; 
+  let pathIdMap = {}; let pathCounter = 0;
+  
+  function getId(pathStr) {
+      if(!pathIdMap[pathStr]) pathIdMap[pathStr] = 'n_' + (++pathCounter);
+      return pathIdMap[pathStr];
+  }
+
   rawRows.forEach(r => {
       let path = [];
-      r.keys.forEach((k, depth) => {
-          path.push(k); let pathStr = path.join('|||');
-          if(!tree[pathStr]) tree[pathStr] = { name: k, depth: depth, path: pathStr, counts: {} };
+      for (let i = 0; i < r.keys.length; i++) {
+          let parentPath = path.join('|||');
+          path.push(r.keys[i]); 
+          let pathStr = path.join('|||');
+          
+          if (!tree[pathStr]) {
+              tree[pathStr] = { name: r.keys[i], depth: i, path: pathStr, counts: {} };
+              if (!parentMap[parentPath]) parentMap[parentPath] = [];
+              if (!parentMap[parentPath].includes(pathStr)) parentMap[parentPath].push(pathStr);
+          }
           let colKey = r.doh + '|' + r.att;
-          tree[pathStr].counts[colKey] = (tree[pathStr].counts[colKey] || 0) + 1; // Counts FSNs
-      });
+          tree[pathStr].counts[colKey] = (tree[pathStr].counts[colKey] || 0) + 1; 
+      }
   });
   
+  // Headers
   let thead1 = `<tr><th rowspan="2" class="dtfc-fixed-left boundary-col" style="z-index:12 !important; vertical-align:middle;">Hierarchy</th>`;
   let thead2 = `<tr>`;
-  sortedDoh.forEach(d => {
+  sortedDoh.forEach((d, dIdx) => {
       let atts = Array.from(buckets[d]).sort((a,b) => getW(attWeights, a) - getW(attWeights, b));
-      thead1 += `<th colspan="${atts.length}" class="text-center">${d}</th>`;
-      atts.forEach(a => { thead2 += `<th class="text-center">${a}</th>`; });
+      let dividerClass = dIdx > 0 ? 'doh-bucket-divider' : '';
+      thead1 += `<th colspan="${atts.length}" class="text-center ${dividerClass}">${d}</th>`;
+      atts.forEach((a, aIdx) => { 
+          let colKey = d + '|' + a;
+          let aDivider = aIdx === 0 && dIdx > 0 ? 'doh-bucket-divider' : '';
+          let sortIcon = DOH_SORT_COL === colKey ? (DOH_SORT_DIR === -1 ? ' <i class="bi bi-arrow-down-short text-warning"></i>' : ' <i class="bi bi-arrow-up-short text-warning"></i>') : '';
+          thead2 += `<th class="text-center sortable-col ${aDivider}" onclick="sortDohMatrix('${colKey}')" title="Click to sort">${a}${sortIcon}</th>`; 
+      });
   });
   thead1 += `</tr>`; thead2 += `</tr>`;
   
-  let sortedPaths = Object.keys(tree).sort(); let tbody = ``;
-  sortedPaths.forEach(p => {
-      let node = tree[p]; let indent = node.depth * 25;
-      let isLeaf = node.depth === activeKeys.length - 1;
-      let safePath = p.replace(/['"]/g, ''); 
-      let icon = isLeaf ? `<span style="display:inline-block; width:12px; margin-right:8px;"></span>` : `<i class="bi bi-chevron-down toggle-icon text-danger" style="cursor:pointer;" onclick="toggleDohRow('${safePath}')"></i>`;
-      let bgClass = node.depth === 0 ? 'doh-l1' : '';
+  let tbody = ``;
+  // Recursive function to build and sort HTML Tree
+  function buildTreeHtml(parentPath) {
+      let children = parentMap[parentPath] || [];
       
-      let rowHtml = `<tr class="doh-row ${bgClass}" data-path="${safePath}" data-depth="${node.depth}" ${node.depth > 0 ? 'style="display:none;"' : ''}>`;
-      rowHtml += `<td class="dtfc-fixed-left boundary-col" style="padding-left: ${indent + 15}px !important; white-space:nowrap;">${icon} <span class="fw-bold">${node.name}</span></td>`;
-      cols.forEach(c => {
-          let val = node.counts[c.doh + '|' + c.att] || 0;
-          rowHtml += `<td class="text-center">${val > 0 ? val.toLocaleString() : '-'}</td>`;
+      // Sort the children based on active column or Alphabetical
+      children.sort((a, b) => {
+          if (!DOH_SORT_COL) return a.localeCompare(b);
+          let valA = tree[a].counts[DOH_SORT_COL] || 0;
+          let valB = tree[b].counts[DOH_SORT_COL] || 0;
+          if (valA === valB) return a.localeCompare(b);
+          return (valA - valB) * DOH_SORT_DIR;
       });
-      rowHtml += `</tr>`; tbody += rowHtml;
-  });
+
+      children.forEach(p => {
+          let node = tree[p]; let indent = node.depth * 25;
+          let isLeaf = node.depth === activeKeys.length - 1;
+          let nodeId = getId(node.path);
+          let parentId = parentPath === "" ? "root" : getId(parentPath);
+          
+          let icon = isLeaf ? `<span style="display:inline-block; width:12px; margin-right:8px;"></span>` : `<i class="bi bi-chevron-down toggle-icon text-danger" style="cursor:pointer;" onclick="toggleDohRow('${nodeId}')"></i>`;
+          let bgClass = node.depth === 0 ? 'doh-l1' : '';
+          
+          let rowHtml = `<tr class="doh-row ${bgClass}" data-node-id="${nodeId}" data-parent-id="${parentId}" ${node.depth > 0 ? 'style="display:none;"' : ''}>`;
+          rowHtml += `<td class="dtfc-fixed-left boundary-col" style="padding-left: ${indent + 15}px !important; white-space:nowrap;">${icon} <span class="fw-bold">${node.name}</span></td>`;
+          
+          cols.forEach((c, cIdx) => {
+              let val = node.counts[c.doh + '|' + c.att] || 0;
+              let isDivider = cols[cIdx].doh !== (cols[cIdx-1] ? cols[cIdx-1].doh : '') && cIdx > 0 ? 'doh-bucket-divider' : '';
+              rowHtml += `<td class="text-center ${isDivider}">${val > 0 ? val.toLocaleString() : '-'}</td>`;
+          });
+          rowHtml += `</tr>`; tbody += rowHtml;
+          
+          buildTreeHtml(p); // recurse
+      });
+  }
+  buildTreeHtml("");
   
   if ($.fn.DataTable.isDataTable('#tbl-doh')) $('#tbl-doh').DataTable().destroy();
   $('#tbl-doh').html(`<thead>${thead1}${thead2}</thead><tbody>${tbody}</tbody>`);
@@ -222,28 +279,31 @@ function renderDohTab() {
   setTimeout(() => { $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust(); }, 150);
 }
 
-window.toggleDohRow = function(path) {
-    let $icon = $(`tr.doh-row[data-path="${path}"] .toggle-icon`);
+// 🔴 High Speed Toggle Logic
+window.toggleDohRow = function(nodeId) {
+    let $icon = $(`tr[data-node-id="${nodeId}"] .toggle-icon`);
     let isCollapsed = $icon.hasClass('bi-chevron-right');
-    let targetDepth = parseInt($(`tr.doh-row[data-path="${path}"]`).attr('data-depth')) + 1;
     
     if (isCollapsed) {
         $icon.removeClass('bi-chevron-right').addClass('bi-chevron-down');
-        $('.doh-row').each(function() {
-            let p = $(this).attr('data-path'); let d = parseInt($(this).attr('data-depth'));
-            if (p.startsWith(path + '|||') && d === targetDepth) $(this).show();
-        });
+        $(`tr[data-parent-id="${nodeId}"]`).show(); // Instantly show immediate children
     } else {
         $icon.removeClass('bi-chevron-down').addClass('bi-chevron-right');
-        $('.doh-row').each(function() {
-            let p = $(this).attr('data-path');
-            if (p.startsWith(path + '|||') && p !== path) {
-                $(this).hide();
-                $(this).find('.toggle-icon').removeClass('bi-chevron-down').addClass('bi-chevron-right');
-            }
-        });
+        hideDescendants(nodeId); // Recursively hide everything below
     }
-    setTimeout(() => { $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust(); }, 50);
+    setTimeout(() => { $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust(); }, 10);
+}
+
+function hideDescendants(parentId) {
+    $(`tr[data-parent-id="${parentId}"]`).each(function() {
+        $(this).hide();
+        let childId = $(this).attr('data-node-id');
+        let $icon = $(this).find('.toggle-icon');
+        if ($icon.length && $icon.hasClass('bi-chevron-down')) {
+            $icon.removeClass('bi-chevron-down').addClass('bi-chevron-right');
+        }
+        hideDescendants(childId);
+    });
 }
 
 $(document).on('click', '.sub-tab', function() {
